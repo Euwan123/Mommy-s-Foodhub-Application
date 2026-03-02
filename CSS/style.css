@@ -1,0 +1,13 @@
+body {
+    background-color: #f8f9fa;
+}
+
+.product-btn {
+    height: 100px;
+    font-size: 18px;
+}
+
+.cart-box {
+    max-height: 400px;
+    overflow-y: auto;
+}
