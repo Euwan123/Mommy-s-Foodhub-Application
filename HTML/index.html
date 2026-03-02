@@ -3,61 +3,149 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mommy's FoodHub Cashier</title>
-
-<!-- Bootstrap -->
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<title>Mommy's FoodHub — POS</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../CSS/style.css">
 </head>
-
 <body>
-<div class="container-fluid p-3">
 
-    <h2 class="text-center mb-4">Mommy's FoodHub Cashier</h2>
-
-    <div class="row">
-
-        <!-- PRODUCTS -->
-        <div class="col-md-8">
-            <div class="row g-3" id="productsContainer">
-                <!-- Products loaded from Supabase -->
-            </div>
-        </div>
-
-        <!-- CART -->
-        <div class="col-md-4 mt-4 mt-md-0">
-            <div class="card">
-                <div class="card-header bg-dark text-white">
-                    Cart
-                </div>
-
-                <div class="card-body cart-box">
-                    <ul class="list-group mb-3" id="cartList"></ul>
-                    <h5>Total: ₱<span id="total">0</span></h5>
-
-                    <button class="btn btn-success w-100 mt-2" onclick="checkout()">
-                        Checkout
-                    </button>
-                    <button class="btn btn-outline-danger w-100 mt-2" onclick="clearCart()">
-                        Clear
-                    </button>
-                </div>
-            </div>
-        </div>
-
-    </div>
+<!-- LOGIN SCREEN -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="logo">🍛 Mommy's FoodHub</div>
+    <div class="sub">Cashier System — Staff Login</div>
+    <input type="text" id="loginUser" placeholder="Username" autocomplete="off">
+    <input type="password" id="loginPass" placeholder="Password">
+    <button class="btn-login" onclick="doLogin()">Sign In</button>
+    <div id="loginError"></div>
+  </div>
 </div>
 
-<!-- Supabase JS -->
+<!-- APP -->
+<div id="app">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="brand">🍛 Mommy's FoodHub</div>
+    <nav>
+      <button class="nav-btn active" onclick="showPage('cashier', this)">🧾 Cashier</button>
+      <button class="nav-btn" onclick="showPage('products', this)">🍽 Menu</button>
+      <button class="nav-btn" onclick="showPage('reports', this)">📊 Reports</button>
+    </nav>
+    <div class="topbar-right">
+      <div class="cashier-badge">Logged in as <span id="cashierName">—</span></div>
+      <button class="btn-logout" onclick="doLogout()">Logout</button>
+    </div>
+  </div>
+
+  <!-- CASHIER PAGE -->
+  <div class="page active" id="page-cashier">
+    <div class="cashier-layout">
+      <div>
+        <div class="section-title">Menu</div>
+        <div class="menu-controls">
+          <input class="menu-search" id="menuSearch" placeholder="Search menu..." oninput="filterProducts()">
+          <div id="catFilters"></div>
+        </div>
+        <div class="product-grid" id="productGrid"></div>
+      </div>
+      <div class="cart-panel">
+        <div class="cart-header">🛒 Order</div>
+        <div class="cart-items" id="cartItems">
+          <div class="cart-empty">No items yet.<br>Tap a product to add.</div>
+        </div>
+        <div class="cart-footer">
+          <div class="cart-total-row">
+            <div class="cart-total-label">Total</div>
+            <div class="cart-total-amt">₱<span id="cartTotal">0.00</span></div>
+          </div>
+          <button class="btn-checkout" onclick="openCheckoutModal()">✔ Checkout</button>
+          <button class="btn-clear" onclick="clearCart()">Clear Order</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MENU MANAGEMENT PAGE -->
+  <div class="page" id="page-products">
+    <div class="section-title">Menu Management</div>
+    <div class="mgmt-layout">
+      <div>
+        <div class="form-card">
+          <div class="form-title" id="formTitle">Add New Item</div>
+          <input type="hidden" id="editId">
+          <div class="form-group">
+            <label>Item Name</label>
+            <input type="text" id="pName" placeholder="e.g. Adobo">
+          </div>
+          <div class="form-group">
+            <label>Price (₱)</label>
+            <input type="number" id="pPrice" placeholder="0.00" min="0" step="0.01">
+          </div>
+          <div class="form-group">
+            <label>Category</label>
+            <input type="text" id="pCat" placeholder="e.g. Main, Drinks, Sides">
+          </div>
+          <button class="btn-add" onclick="saveProduct()">Save Item</button>
+          <button class="btn-clear" style="margin-top:8px;" onclick="cancelEdit()">Cancel / Reset</button>
+        </div>
+      </div>
+      <div class="form-card">
+        <div class="products-table-wrap">
+          <table>
+            <thead>
+              <tr><th>Name</th><th>Price</th><th>Category</th><th></th></tr>
+            </thead>
+            <tbody id="productsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REPORTS PAGE -->
+  <div class="page" id="page-reports">
+    <div class="section-title">Sales Reports</div>
+    <div class="report-controls">
+      <input type="date" id="filterDate" class="menu-search" onchange="loadReports()">
+      <button class="cat-btn active" onclick="clearDateFilter(this)">All Time</button>
+    </div>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-label">Total Orders</div><div class="stat-val" id="statOrders">—</div></div>
+      <div class="stat-card"><div class="stat-label">Total Revenue</div><div class="stat-val green" id="statRevenue">—</div></div>
+      <div class="stat-card"><div class="stat-label">Avg Order Value</div><div class="stat-val" id="statAvg">—</div></div>
+    </div>
+    <div class="orders-table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Date & Time</th><th>Cashier</th><th>Items</th><th>Total</th></tr></thead>
+        <tbody id="ordersBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- CHECKOUT MODAL -->
+<div class="modal-overlay" id="checkoutModal">
+  <div class="modal-box">
+    <div class="modal-title">Confirm Order</div>
+    <div class="modal-body" id="modalBody">—</div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-modal-ok" onclick="checkout()">Place Order</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- Supabase -->
 <script type="module">
   import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-
   const supabaseUrl = 'https://ooomoeutmbmomeiqycag.supabase.co';
-  const supabaseKey = 'sb_publishable_WQXml2_T7YtYQo_QFw07UA_HRgqMMjH';
-  const supabase = createClient(supabaseUrl, supabaseKey);
-
-  window.supabase = supabase; // make globally available
-
+  const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vbW9qZXV0bWJtb21laXF5Y2FnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0MTM5OTYsImV4cCI6MjA4Nzk4OTk5Nn0.JUOZsj8EYueyoSbNtWdg-fLOvNMhYFa8RYgVNebdsxc';
+  window.supabase = createClient(supabaseUrl, supabaseKey);
 </script>
 
 <script src="../JS/script.js" type="module"></script>
