@@ -6,10 +6,13 @@ let cart = [];
 let allProducts = [];
 let allPromos = [];
 let allStaff = [];
+let allRequests = [];
 let selectedCategory = 'All';
 let activePromo = null;
 let selectedPayment = 'Cash';
 let queueCounter = 1;
+let selectedRequestFilter = 'Pending';
+let currentCaptcha = generateCaptcha();
 let settings = { name: "Mommy's FoodHub", address: '', contact: '', footer: 'Thank you for dining with us! 🙏' };
 
 const DEMO_USERS = [
@@ -17,7 +20,101 @@ const DEMO_USERS = [
   { username: 'cashier', password_plain: 'cashier1', role: 'Cashier' },
 ];
 
+/* ══════════ CAPTCHA ══════════ */
+function generateCaptcha() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 5; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+function displayCaptcha() {
+  currentCaptcha = generateCaptcha();
+  document.getElementById('captchaCode').textContent = currentCaptcha;
+}
+
 /* ══════════ AUTH ══════════ */
+window.showSignupForm = function () {
+  document.getElementById('loginForm').style.display = 'none';
+  document.getElementById('signupForm').style.display = 'block';
+  displayCaptcha();
+  document.getElementById('signupError').textContent = '';
+};
+
+window.showLoginForm = function () {
+  document.getElementById('signupForm').style.display = 'none';
+  document.getElementById('loginForm').style.display = 'block';
+  document.getElementById('signupName').value = '';
+  document.getElementById('signupEmail').value = '';
+  document.getElementById('signupAddress').value = '';
+  document.getElementById('signupRole').value = '';
+  document.getElementById('signupPass').value = '';
+  document.getElementById('signupIDPic').value = '';
+  document.getElementById('captchaInput').value = '';
+};
+
+window.submitSignup = async function () {
+  const name = document.getElementById('signupName').value.trim();
+  const email = document.getElementById('signupEmail').value.trim();
+  const address = document.getElementById('signupAddress').value.trim();
+  const role = document.getElementById('signupRole').value;
+  const password = document.getElementById('signupPass').value;
+  const captchaInput = document.getElementById('captchaInput').value.trim().toUpperCase();
+  const idPicFile = document.getElementById('signupIDPic').files[0];
+  const errEl = document.getElementById('signupError');
+  errEl.textContent = '';
+  
+  if (!name || !email || !address || !role || !password) {
+    errEl.textContent = 'Please fill in all fields';
+    return;
+  }
+  if (!idPicFile) {
+    errEl.textContent = 'Please upload an ID picture';
+    return;
+  }
+  if (captchaInput !== currentCaptcha) {
+    errEl.textContent = 'Incorrect CAPTCHA. Please try again.';
+    displayCaptcha();
+    document.getElementById('captchaInput').value = '';
+    return;
+  }
+  if (!/^[\w\.-]+@[\w\.-]+\.\w+$/.test(email)) {
+    errEl.textContent = 'Invalid email address';
+    return;
+  }
+  
+  // Convert image to base64
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    const pictureData = e.target.result;
+    const request = {
+      full_name: name,
+      email: email,
+      address: address,
+      business_type: role,
+      password_hash: btoa(password), // Simple base64 encoding
+      id_picture: pictureData,
+      status: 'Pending',
+      created_at: new Date().toISOString()
+    };
+    
+    try {
+      const { error } = await sb.from('business_requests').insert([request]);
+      if (error) throw error;
+      
+      errEl.style.color = 'var(--green)';
+      errEl.textContent = '✓ Request submitted! Admin will review it soon.';
+      setTimeout(() => showLoginForm(), 2000);
+    } catch (err) {
+      errEl.textContent = 'Error submitting request. Try again later.';
+      console.error(err);
+    }
+  };
+  reader.readAsDataURL(idPicFile);
+};
+
 window.doLogin = async function () {
   const u = document.getElementById('loginUser').value.trim();
   const p = document.getElementById('loginPass').value;
@@ -66,6 +163,7 @@ async function init() {
   loadSettings();
   await loadProducts();
   await loadPromos();
+  await loadRequests();
   renderCatFilters();
   renderProductGrid();
   updateOfflineBadge();
@@ -284,6 +382,103 @@ function renderPromosTable() {
     <td><button class="btn-icon" onclick="editPromo('${p.id}')">✏️</button><button class="btn-icon" onclick="deletePromo('${p.id}')">🗑</button></td>
   </tr>`).join('');
 }
+
+/* ══════════ REQUESTS ══════════ */
+async function loadRequests() {
+  const { data, error } = await sb.from('business_requests').select('*').order('created_at', { ascending: false });
+  if (!error) allRequests = data || [];
+}
+
+window.filterRequests = function (status, btn) {
+  selectedRequestFilter = status;
+  document.querySelectorAll('.requests-controls .cat-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderRequestsGrid();
+};
+
+function renderRequestsGrid() {
+  const grid = document.getElementById('requestsGrid');
+  const filtered = selectedRequestFilter === 'All' 
+    ? allRequests 
+    : allRequests.filter(r => r.status === selectedRequestFilter);
+  
+  if (!filtered.length) {
+    grid.innerHTML = '<div class="request-empty">No requests found.</div>';
+    return;
+  }
+  
+  grid.innerHTML = filtered.map(req => `
+    <div class="request-card ${req.status.toLowerCase()}">
+      <div class="request-status ${req.status.toLowerCase()}">${req.status}</div>
+      <div class="request-field">
+        <div class="request-field-label">Full Name</div>
+        <div class="request-field-val">${req.full_name}</div>
+      </div>
+      <div class="request-field">
+        <div class="request-field-label">Email</div>
+        <div class="request-field-val">${req.email}</div>
+      </div>
+      <div class="request-field">
+        <div class="request-field-label">Address</div>
+        <div class="request-field-val">${req.address}</div>
+      </div>
+      <div class="request-field">
+        <div class="request-field-label">Business Type</div>
+        <div class="request-field-val">${req.business_type}</div>
+      </div>
+      ${req.id_picture ? `<img src="${req.id_picture}" alt="ID" class="request-idpic">` : ''}
+      <div class="request-field">
+        <div class="request-field-label">Applied</div>
+        <div class="request-field-val">${new Date(req.created_at).toLocaleDateString()}</div>
+      </div>
+      ${req.status === 'Pending' ? `
+        <div class="request-actions">
+          <button class="btn-accept" onclick="acceptRequest('${req.id}')">✓ Accept</button>
+          <button class="btn-reject" onclick="rejectRequest('${req.id}')">✗ Reject</button>
+        </div>
+      ` : ''}
+    </div>
+  `).join('');
+}
+
+window.acceptRequest = async function (id) {
+  if (!confirm('Accept this business registration?')) return;
+  const req = allRequests.find(r => r.id === id);
+  if (!req) return;
+  
+  try {
+    // Create cashier account
+    const newCashier = {
+      username: req.email.split('@')[0], // Use part of email as username
+      password_plain: atob(req.password_hash),
+      role: 'Cashier'
+    };
+    
+    await sb.from('cashiers').insert([newCashier]);
+    await sb.from('business_requests').update({ status: 'Approved' }).eq('id', id);
+    await loadRequests();
+    renderRequestsGrid();
+    showToast(`✓ ${req.full_name} approved! Credentials sent via email.`, 'success');
+  } catch (err) {
+    showToast('Error approving request', 'error');
+    console.error(err);
+  }
+};
+
+window.rejectRequest = async function (id) {
+  if (!confirm('Reject this registration?')) return;
+  const req = allRequests.find(r => r.id === id);
+  if (!req) return;
+  
+  try {
+    await sb.from('business_requests').update({ status: 'Rejected' }).eq('id', id);
+    await loadRequests();
+    renderRequestsGrid();
+    showToast(`✗ ${req.full_name}'s request rejected.`, 'success');
+  } catch (err) {
+    showToast('Error rejecting request', 'error');
+  }
+};
 
 /* ══════════ STAFF ══════════ */
 window.saveStaff = async function () {
@@ -596,6 +791,7 @@ window.showPage = function (name, btn) {
   if (name === 'products') renderProductsTable();
   if (name === 'reports')  loadReports();
   if (name === 'promos')   renderPromosTable();
+  if (name === 'requests') renderRequestsGrid();
   if (name === 'staff')    { loadStaff().then(renderStaffTable); }
   if (name === 'settings') loadSettings();
 };

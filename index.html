@@ -18,15 +18,44 @@
 <!-- OFFLINE BANNER -->
 <div id="offlineBanner">📵 You're offline — orders will sync when connection returns</div>
 
-<!-- LOGIN -->
+<!-- LOGIN & SIGNUP -->
 <div id="loginScreen">
-  <div class="login-box">
+  <div class="login-box" id="loginForm">
     <div class="logo">🍛 Mommy's FoodHub</div>
     <div class="sub">Cashier System — Staff Login</div>
     <input type="text" id="loginUser" placeholder="Username" autocomplete="off">
     <input type="password" id="loginPass" placeholder="Password">
     <button class="btn-login" onclick="doLogin()">Sign In</button>
     <div id="loginError"></div>
+    <div style="text-align:center;margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+      <div style="color:var(--text-muted);font-size:13px;margin-bottom:8px;">New Partner?</div>
+      <button class="btn-secondary" onclick="showSignupForm()">Register Your Business</button>
+    </div>
+  </div>
+
+  <div class="login-box" id="signupForm" style="display:none;">
+    <div class="logo">🍛 Sign Up</div>
+    <div class="sub">Register as Business Partner</div>
+    <input type="text" id="signupName" placeholder="Full Name" autocomplete="off">
+    <input type="email" id="signupEmail" placeholder="Email Address">
+    <input type="text" id="signupAddress" placeholder="Business Address">
+    <select id="signupRole">
+      <option value="">Select Type of Business</option>
+      <option value="Company">Company</option>
+      <option value="Food Stall">Food Stall</option>
+    </select>
+    <input type="password" id="signupPass" placeholder="Password">
+    <div class="form-group"><label style="font-size:12px;color:var(--text-muted);">ID Picture (JPG/PNG)</label><input type="file" id="signupIDPic" accept="image/*" style="padding:8px;"></div>
+    <div class="captcha-box">
+      <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:8px;">Verify you're human</label>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="text" id="captchaInput" placeholder="Enter: " style="flex:1;">
+        <div id="captchaCode" style="background:var(--surface2);padding:8px 12px;border-radius:8px;font-weight:bold;font-size:18px;min-width:80px;text-align:center;">—</div>
+      </div>
+    </div>
+    <button class="btn-login" onclick="submitSignup()" style="background:var(--green);margin-top:12px;">Submit Request</button>
+    <button class="btn-secondary" onclick="showLoginForm()" style="margin-top:8px;">Back to Login</button>
+    <div id="signupError" style="color:#f87171;font-size:13px;margin-top:10px;min-height:18px;"></div>
   </div>
 </div>
 
@@ -38,6 +67,7 @@
       <button class="nav-btn active" onclick="showPage('cashier', this)">🧾 Cashier</button>
       <button class="nav-btn" onclick="showPage('products', this)">🍽 Menu</button>
       <button class="nav-btn" onclick="showPage('reports', this)">📊 Reports</button>
+      <button class="nav-btn admin-only" onclick="showPage('requests', this)">📋 Requests</button>
       <button class="nav-btn admin-only" onclick="showPage('promos', this)">🏷 Promos</button>
       <button class="nav-btn admin-only" onclick="showPage('staff', this)">👥 Staff</button>
       <button class="nav-btn admin-only" onclick="showPage('settings', this)">⚙️ Settings</button>
@@ -199,6 +229,18 @@
         <tbody id="staffTableBody"></tbody></table>
       </div></div>
     </div>
+  </div>
+
+  <!-- REQUESTS -->
+  <div class="page" id="page-requests">
+    <div class="section-title">Business Registration Requests</div>
+    <div class="requests-controls">
+      <button class="cat-btn active" onclick="filterRequests('Pending',this)">⏳ Pending</button>
+      <button class="cat-btn" onclick="filterRequests('Approved',this)">✓ Approved</button>
+      <button class="cat-btn" onclick="filterRequests('Rejected',this)">✗ Rejected</button>
+      <button class="cat-btn" onclick="filterRequests('All',this)">All</button>
+    </div>
+    <div class="requests-grid" id="requestsGrid"></div>
   </div>
 
   <!-- SETTINGS -->
