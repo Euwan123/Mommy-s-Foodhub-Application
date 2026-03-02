@@ -4,21 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Mommy's FoodHub — POS</title>
-
-<!-- PWA -->
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#f59e0b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="FoodHub POS">
 <link rel="apple-touch-icon" href="/icon-192.png">
-
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="CSS/style.css">
 </head>
 <body>
 
-<!-- LOGIN SCREEN -->
+<!-- OFFLINE BANNER -->
+<div id="offlineBanner">📵 You're offline — orders will sync when connection returns</div>
+
+<!-- LOGIN -->
 <div id="loginScreen">
   <div class="login-box">
     <div class="logo">🍛 Mommy's FoodHub</div>
@@ -32,23 +32,23 @@
 
 <!-- APP -->
 <div id="app">
-
-  <!-- TOPBAR -->
   <div class="topbar">
     <div class="brand">🍛 Mommy's FoodHub</div>
     <nav>
       <button class="nav-btn active" onclick="showPage('cashier', this)">🧾 Cashier</button>
       <button class="nav-btn" onclick="showPage('products', this)">🍽 Menu</button>
       <button class="nav-btn" onclick="showPage('reports', this)">📊 Reports</button>
-      <button class="nav-btn" onclick="showPage('promos', this)">🏷 Promos</button>
+      <button class="nav-btn admin-only" onclick="showPage('promos', this)">🏷 Promos</button>
+      <button class="nav-btn admin-only" onclick="showPage('staff', this)">👥 Staff</button>
+      <button class="nav-btn admin-only" onclick="showPage('settings', this)">⚙️ Settings</button>
     </nav>
     <div class="topbar-right">
-      <div class="cashier-badge">Logged in as <span id="cashierName">—</span></div>
+      <div class="cashier-badge">Logged in as <span id="cashierName">—</span> <span id="roleTag" class="role-tag"></span></div>
       <button class="btn-logout" onclick="doLogout()">Logout</button>
     </div>
   </div>
 
-  <!-- CASHIER PAGE -->
+  <!-- CASHIER -->
   <div class="page active" id="page-cashier">
     <div class="cashier-layout">
       <div>
@@ -61,22 +61,41 @@
       </div>
       <div class="cart-panel">
         <div class="cart-header">🛒 Order</div>
-        <div class="cart-items" id="cartItems">
-          <div class="cart-empty">No items yet.<br>Tap a product to add.</div>
-        </div>
+        <div class="cart-items" id="cartItems"><div class="cart-empty">No items yet.<br>Tap a product to add.</div></div>
         <div class="cart-footer">
-          <!-- Discount Row -->
+          <div class="form-group" style="margin-bottom:10px;">
+            <label>Payment Method</label>
+            <div class="payment-btns">
+              <button class="pay-btn active" onclick="setPayment('Cash',this)">💵 Cash</button>
+              <button class="pay-btn" onclick="setPayment('GCash',this)">📱 GCash</button>
+              <button class="pay-btn" onclick="setPayment('Card',this)">💳 Card</button>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:10px;">
+            <label>Order Notes</label>
+            <input type="text" class="discount-input" id="orderNotes" placeholder="e.g. no onions, extra rice..." style="text-transform:none;width:100%;">
+          </div>
           <div class="discount-row">
-            <input class="discount-input" id="promoInput" placeholder="Promo code..." />
+            <input class="discount-input" id="promoInput" placeholder="Promo code...">
             <button class="btn-apply" onclick="applyPromo()">Apply</button>
           </div>
           <div id="promoMsg"></div>
           <div class="cart-total-row">
             <div>
               <div class="cart-total-label">Total</div>
-              <div id="discountLine" style="display:none;font-size:12px;color:var(--green);">Discount applied!</div>
+              <div id="discountLine" style="display:none;font-size:12px;color:var(--green);"></div>
             </div>
             <div class="cart-total-amt">₱<span id="cartTotal">0.00</span></div>
+          </div>
+          <div class="change-calc" id="changeCalc" style="display:none;">
+            <div class="change-row">
+              <label>Cash Received (₱)</label>
+              <input type="number" id="cashReceived" placeholder="0.00" oninput="calcChange()" min="0">
+            </div>
+            <div class="change-row">
+              <label>Change</label>
+              <div class="change-amt" id="changeAmt">₱0.00</div>
+            </div>
           </div>
           <button class="btn-checkout" onclick="openCheckoutModal()">✔ Checkout</button>
           <button class="btn-clear" onclick="clearCart()">Clear Order</button>
@@ -85,7 +104,7 @@
     </div>
   </div>
 
-  <!-- MENU MANAGEMENT PAGE -->
+  <!-- MENU MANAGEMENT -->
   <div class="page" id="page-products">
     <div class="section-title">Menu Management</div>
     <div class="mgmt-layout">
@@ -93,56 +112,48 @@
         <div class="form-card">
           <div class="form-title" id="formTitle">Add New Item</div>
           <input type="hidden" id="editId">
-          <div class="form-group">
-            <label>Item Name</label>
-            <input type="text" id="pName" placeholder="e.g. Adobo">
-          </div>
-          <div class="form-group">
-            <label>Price (₱)</label>
-            <input type="number" id="pPrice" placeholder="0.00" min="0" step="0.01">
-          </div>
-          <div class="form-group">
-            <label>Category</label>
-            <input type="text" id="pCat" placeholder="e.g. Main, Drinks, Sides">
-          </div>
+          <div class="form-group"><label>Item Name</label><input type="text" id="pName" placeholder="e.g. Adobo"></div>
+          <div class="form-group"><label>Price (₱)</label><input type="number" id="pPrice" placeholder="0.00" min="0" step="0.01"></div>
+          <div class="form-group"><label>Category</label><input type="text" id="pCat" placeholder="e.g. Main, Drinks, Sides"></div>
           <button class="btn-add" onclick="saveProduct()">Save Item</button>
           <button class="btn-clear" style="margin-top:8px;" onclick="cancelEdit()">Cancel / Reset</button>
         </div>
       </div>
-      <div class="form-card">
-        <div class="products-table-wrap">
-          <table>
-            <thead>
-              <tr><th>Name</th><th>Price</th><th>Category</th><th></th></tr>
-            </thead>
-            <tbody id="productsTableBody"></tbody>
-          </table>
-        </div>
-      </div>
+      <div class="form-card"><div class="products-table-wrap">
+        <table><thead><tr><th>Name</th><th>Price</th><th>Category</th><th></th></tr></thead>
+        <tbody id="productsTableBody"></tbody></table>
+      </div></div>
     </div>
   </div>
 
-  <!-- REPORTS PAGE -->
+  <!-- REPORTS -->
   <div class="page" id="page-reports">
     <div class="section-title">Sales Reports</div>
     <div class="report-controls">
-      <input type="date" id="filterDate" class="menu-search" onchange="loadReports()">
+      <input type="date" id="filterDate" class="menu-search" style="max-width:180px;" onchange="loadReports()">
       <button class="cat-btn active" onclick="clearDateFilter(this)">All Time</button>
+      <button class="cat-btn" onclick="exportToExcel()">📥 Export Excel</button>
+      <button class="cat-btn" onclick="syncOfflineOrders()">🔄 Sync Offline</button>
     </div>
     <div class="stats-row">
       <div class="stat-card"><div class="stat-label">Total Orders</div><div class="stat-val" id="statOrders">—</div></div>
       <div class="stat-card"><div class="stat-label">Total Revenue</div><div class="stat-val green" id="statRevenue">—</div></div>
       <div class="stat-card"><div class="stat-label">Avg Order Value</div><div class="stat-val" id="statAvg">—</div></div>
+      <div class="stat-card"><div class="stat-label">Pending Sync</div><div class="stat-val" id="statOffline">0</div></div>
+    </div>
+    <div class="form-card" style="margin-bottom:20px;">
+      <div class="form-title">🏆 Best Selling Items</div>
+      <div id="bestSellersChart" class="best-sellers"></div>
     </div>
     <div class="orders-table-wrap">
       <table>
-        <thead><tr><th>#</th><th>Date & Time</th><th>Cashier</th><th>Items</th><th>Total</th></tr></thead>
+        <thead><tr><th>#</th><th>Queue</th><th>Date & Time</th><th>Cashier</th><th>Payment</th><th>Items</th><th>Notes</th><th>Total</th></tr></thead>
         <tbody id="ordersBody"></tbody>
       </table>
     </div>
   </div>
 
-  <!-- PROMOS PAGE -->
+  <!-- PROMOS -->
   <div class="page" id="page-promos">
     <div class="section-title">Promo Codes</div>
     <div class="mgmt-layout">
@@ -150,49 +161,61 @@
         <div class="form-card">
           <div class="form-title" id="promoFormTitle">Add Promo Code</div>
           <input type="hidden" id="promoEditId">
-          <div class="form-group">
-            <label>Code</label>
-            <input type="text" id="promoCode" placeholder="e.g. SAVE20">
+          <div class="form-group"><label>Code</label><input type="text" id="promoCode" placeholder="e.g. SAVE20"></div>
+          <div class="form-group"><label>Discount Type</label>
+            <select id="promoType"><option value="percent">Percent Off (%)</option><option value="fixed">Fixed Amount (₱)</option></select>
           </div>
-          <div class="form-group">
-            <label>Discount Type</label>
-            <select id="promoType">
-              <option value="percent">Percent Off (%)</option>
-              <option value="fixed">Fixed Amount (₱)</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Discount Value</label>
-            <input type="number" id="promoValue" placeholder="e.g. 10" min="0" step="0.01">
-          </div>
+          <div class="form-group"><label>Discount Value</label><input type="number" id="promoValue" placeholder="e.g. 10" min="0" step="0.01"></div>
           <button class="btn-add" onclick="savePromo()">Save Promo</button>
           <button class="btn-clear" style="margin-top:8px;" onclick="cancelPromoEdit()">Cancel / Reset</button>
         </div>
       </div>
-      <div class="form-card">
-        <div class="products-table-wrap">
-          <table>
-            <thead><tr><th>Code</th><th>Type</th><th>Value</th><th></th></tr></thead>
-            <tbody id="promosTableBody"></tbody>
-          </table>
+      <div class="form-card"><div class="products-table-wrap">
+        <table><thead><tr><th>Code</th><th>Type</th><th>Value</th><th></th></tr></thead>
+        <tbody id="promosTableBody"></tbody></table>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- STAFF -->
+  <div class="page" id="page-staff">
+    <div class="section-title">Staff Management</div>
+    <div class="mgmt-layout">
+      <div>
+        <div class="form-card">
+          <div class="form-title" id="staffFormTitle">Add Staff</div>
+          <input type="hidden" id="staffEditId">
+          <div class="form-group"><label>Username</label><input type="text" id="staffUser" placeholder="e.g. juan"></div>
+          <div class="form-group"><label>Password</label><input type="text" id="staffPass" placeholder="password"></div>
+          <div class="form-group"><label>Role</label>
+            <select id="staffRole"><option value="Cashier">Cashier</option><option value="Admin">Admin</option></select>
+          </div>
+          <button class="btn-add" onclick="saveStaff()">Save Staff</button>
+          <button class="btn-clear" style="margin-top:8px;" onclick="cancelStaffEdit()">Cancel / Reset</button>
         </div>
       </div>
+      <div class="form-card"><div class="products-table-wrap">
+        <table><thead><tr><th>Username</th><th>Role</th><th></th></tr></thead>
+        <tbody id="staffTableBody"></tbody></table>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="page" id="page-settings">
+    <div class="section-title">Receipt Settings</div>
+    <div class="form-card" style="max-width:500px;">
+      <div class="form-group"><label>Restaurant Name</label><input type="text" id="settingName" placeholder="Mommy's FoodHub"></div>
+      <div class="form-group"><label>Address</label><input type="text" id="settingAddress" placeholder="e.g. 123 Main St, Davao City"></div>
+      <div class="form-group"><label>Contact Number</label><input type="text" id="settingContact" placeholder="e.g. 09XX-XXX-XXXX"></div>
+      <div class="form-group"><label>Receipt Footer</label><input type="text" id="settingFooter" placeholder="Thank you for dining with us!"></div>
+      <button class="btn-add" onclick="saveSettings()">Save Settings</button>
     </div>
   </div>
 
 </div>
 
-<!-- PRINT STYLES -->
-<style>
-@media print {
-  body * { visibility: hidden; }
-  #printArea, #printArea * { visibility: visible; }
-  #printArea { position: fixed; left: 0; top: 0; width: 100%; }
-}
-</style>
-<div id="printArea" style="display:none;"></div>
-
-<!-- CHECKOUT MODAL -->
+<!-- MODALS -->
 <div class="modal-overlay" id="checkoutModal">
   <div class="modal-box">
     <div class="modal-title">Confirm Order</div>
@@ -204,7 +227,6 @@
   </div>
 </div>
 
-<!-- RECEIPT MODAL -->
 <div class="modal-overlay" id="receiptModal">
   <div class="modal-box" style="width:420px;max-width:95vw;">
     <div class="modal-title">🧾 Receipt</div>
@@ -225,54 +247,27 @@
   </div>
 </div>
 
-<!-- TOAST -->
 <div id="toast"></div>
+<div id="printArea" style="display:none;"></div>
 
-<!-- Supabase -->
 <script type="module">
   import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-  const supabaseUrl = 'https://ooomoeutmbmomeiqycag.supabase.co';
-  const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vbW9qZXV0bWJtb21laXF5Y2FnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0MTM5OTYsImV4cCI6MjA4Nzk4OTk5Nn0.JUOZsj8EYueyoSbNtWdg-fLOvNMhYFa8RYgVNebdsxc';
-  window.supabase = createClient(supabaseUrl, supabaseKey);
+  window.supabase = createClient(
+    'https://ooomoeutmbmomeiqycag.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vbW9qZXV0bWJtb21laXF5Y2FnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0MTM5OTYsImV4cCI6MjA4Nzk4OTk5Nn0.JUOZsj8EYueyoSbNtWdg-fLOvNMhYFa8RYgVNebdsxc'
+  );
 </script>
-
 <script src="JS/script.js" type="module"></script>
-
-<!-- PWA Registration -->
 <script>
-  // Register service worker
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js')
-        .then(reg => console.log('SW registered'))
-        .catch(err => console.log('SW error:', err));
-    });
-  }
-
-  // Install prompt
-  let deferredPrompt;
-  window.addEventListener('beforeinstallprompt', e => {
-    e.preventDefault();
-    deferredPrompt = e;
-    document.getElementById('installBanner').classList.add('show');
-  });
-
-  window.installApp = async function() {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    deferredPrompt = null;
-    document.getElementById('installBanner').classList.remove('show');
-  };
-
-  window.dismissInstall = function() {
-    document.getElementById('installBanner').classList.remove('show');
-  };
-
-  // Hide banner if already installed
-  window.addEventListener('appinstalled', () => {
-    document.getElementById('installBanner').classList.remove('show');
-  });
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; document.getElementById('installBanner').classList.add('show'); });
+window.installApp = async function() { if (!deferredPrompt) return; deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt = null; document.getElementById('installBanner').classList.remove('show'); };
+window.dismissInstall = function() { document.getElementById('installBanner').classList.remove('show'); };
+window.addEventListener('appinstalled', () => document.getElementById('installBanner').classList.remove('show'));
+window.addEventListener('online',  () => { document.getElementById('offlineBanner').classList.remove('show'); if(window.syncOfflineOrders) syncOfflineOrders(); });
+window.addEventListener('offline', () => document.getElementById('offlineBanner').classList.add('show'));
+if (!navigator.onLine) document.getElementById('offlineBanner').classList.add('show');
 </script>
 </body>
 </html>
