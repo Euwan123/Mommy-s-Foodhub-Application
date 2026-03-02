@@ -6,7 +6,9 @@ const sb = window.supabase;
 let currentUser = null;
 let cart = [];
 let allProducts = [];
+let allPromos = [];
 let selectedCategory = 'All';
+let activePromo = null;
 
 const DEMO_USERS = [
   { username: 'admin',   password_plain: 'admin123', role: 'Admin' },
@@ -66,6 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
 ══════════════════════════════════ */
 async function init() {
   await loadProducts();
+  await loadPromos();
   renderCatFilters();
   renderProductGrid();
 }
@@ -151,16 +154,42 @@ window.removeFromCart = function (id) {
 
 window.clearCart = function () {
   cart = [];
+  activePromo = null;
+  document.getElementById('promoInput').value = '';
+  document.getElementById('promoMsg').textContent = '';
   renderCart();
 };
 
-function cartTotal() {
+function cartSubtotal() {
   return cart.reduce((s, i) => s + i.price * i.quantity, 0);
+}
+
+function cartTotal() {
+  const sub = cartSubtotal();
+  if (!activePromo) return sub;
+  if (activePromo.type === 'percent') return Math.max(0, sub - (sub * activePromo.value / 100));
+  if (activePromo.type === 'fixed')   return Math.max(0, sub - activePromo.value);
+  return sub;
+}
+
+function discountAmount() {
+  return cartSubtotal() - cartTotal();
 }
 
 function renderCart() {
   const wrap = document.getElementById('cartItems');
-  document.getElementById('cartTotal').textContent = cartTotal().toFixed(2);
+  const sub = cartSubtotal();
+  const total = cartTotal();
+  document.getElementById('cartTotal').textContent = total.toFixed(2);
+
+  const discLine = document.getElementById('discountLine');
+  if (activePromo && discountAmount() > 0) {
+    discLine.style.display = 'block';
+    discLine.textContent = `− ₱${discountAmount().toFixed(2)} (${activePromo.code})`;
+  } else {
+    discLine.style.display = 'none';
+  }
+
   if (!cart.length) {
     wrap.innerHTML = '<div class="cart-empty">No items yet.<br>Tap a product to add.</div>';
     return;
@@ -183,14 +212,156 @@ function renderCart() {
 }
 
 /* ══════════════════════════════════
+   PROMO CODES
+══════════════════════════════════ */
+async function loadPromos() {
+  const { data, error } = await sb.from('promos').select('*');
+  if (!error) allPromos = data || [];
+}
+
+window.applyPromo = function () {
+  const code = document.getElementById('promoInput').value.trim().toUpperCase();
+  const msgEl = document.getElementById('promoMsg');
+  const promo = allPromos.find(p => p.code.toUpperCase() === code);
+  if (!promo) {
+    msgEl.style.color = 'var(--red)'; msgEl.textContent = 'Invalid promo code.';
+    activePromo = null; renderCart(); return;
+  }
+  activePromo = promo;
+  msgEl.style.color = 'var(--green)';
+  msgEl.textContent = promo.type === 'percent'
+    ? `✓ ${promo.value}% off applied!`
+    : `✓ ₱${promo.value} off applied!`;
+  renderCart();
+};
+
+window.savePromo = async function () {
+  const code  = document.getElementById('promoCode').value.trim().toUpperCase();
+  const type  = document.getElementById('promoType').value;
+  const value = parseFloat(document.getElementById('promoValue').value);
+  const editId = document.getElementById('promoEditId').value;
+  if (!code || isNaN(value)) { showToast('Fill in all fields', 'error'); return; }
+
+  if (editId) {
+    const { error } = await sb.from('promos').update({ code, type, value }).eq('id', editId);
+    if (error) { showToast('Update failed', 'error'); return; }
+    showToast('Promo updated!', 'success');
+  } else {
+    const { error } = await sb.from('promos').insert([{ code, type, value }]);
+    if (error) { showToast('Add failed', 'error'); return; }
+    showToast('Promo added!', 'success');
+  }
+  cancelPromoEdit();
+  await loadPromos();
+  renderPromosTable();
+};
+
+window.editPromo = function (id) {
+  const p = allPromos.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('promoEditId').value = p.id;
+  document.getElementById('promoCode').value = p.code;
+  document.getElementById('promoType').value = p.type;
+  document.getElementById('promoValue').value = p.value;
+  document.getElementById('promoFormTitle').textContent = 'Edit Promo';
+};
+
+window.deletePromo = async function (id) {
+  if (!confirm('Delete this promo?')) return;
+  const { error } = await sb.from('promos').delete().eq('id', id);
+  if (error) { showToast('Delete failed', 'error'); return; }
+  showToast('Promo deleted', 'success');
+  await loadPromos();
+  renderPromosTable();
+};
+
+window.cancelPromoEdit = function () {
+  document.getElementById('promoEditId').value = '';
+  document.getElementById('promoCode').value = '';
+  document.getElementById('promoValue').value = '';
+  document.getElementById('promoFormTitle').textContent = 'Add Promo Code';
+};
+
+function renderPromosTable() {
+  const tbody = document.getElementById('promosTableBody');
+  if (!allPromos.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-muted);text-align:center;padding:30px">No promos yet.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = allPromos.map(p => `
+    <tr>
+      <td><strong>${p.code}</strong></td>
+      <td><span class="badge">${p.type === 'percent' ? 'Percent' : 'Fixed'}</span></td>
+      <td>${p.type === 'percent' ? p.value + '%' : '₱' + parseFloat(p.value).toFixed(2)}</td>
+      <td>
+        <button class="btn-icon" onclick="editPromo('${p.id}')">✏️</button>
+        <button class="btn-icon" onclick="deletePromo('${p.id}')">🗑</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+/* ══════════════════════════════════
+   RECEIPT
+══════════════════════════════════ */
+function buildReceiptHTML(orderNum) {
+  const now = new Date();
+  const sub = cartSubtotal();
+  const disc = discountAmount();
+  const total = cartTotal();
+  const itemRows = cart.map(i =>
+    `<tr><td>${i.name}</td><td style="text-align:center">${i.quantity}</td><td style="text-align:right">₱${(i.price * i.quantity).toFixed(2)}</td></tr>`
+  ).join('');
+
+  return `
+    <div style="font-family:monospace;font-size:13px;color:#1a1008;padding:8px;">
+      <div style="text-align:center;margin-bottom:12px;">
+        <div style="font-size:18px;font-weight:bold;">🍛 Mommy's FoodHub</div>
+        <div style="font-size:11px;color:#666;">${now.toLocaleDateString()} ${now.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div>
+        <div style="font-size:11px;color:#666;">Cashier: ${currentUser.username}</div>
+        ${orderNum ? `<div style="font-size:11px;color:#666;">Order #${orderNum}</div>` : ''}
+      </div>
+      <hr style="border:1px dashed #ccc;margin:8px 0;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="font-size:11px;color:#999;"><th style="text-align:left">Item</th><th style="text-align:center">Qty</th><th style="text-align:right">Amount</th></tr></thead>
+        <tbody>${itemRows}</tbody>
+      </table>
+      <hr style="border:1px dashed #ccc;margin:8px 0;">
+      <div style="display:flex;justify-content:space-between;"><span>Subtotal</span><span>₱${sub.toFixed(2)}</span></div>
+      ${disc > 0 ? `<div style="display:flex;justify-content:space-between;color:green;"><span>Discount (${activePromo.code})</span><span>− ₱${disc.toFixed(2)}</span></div>` : ''}
+      <div style="display:flex;justify-content:space-between;font-weight:bold;font-size:15px;margin-top:6px;"><span>TOTAL</span><span>₱${total.toFixed(2)}</span></div>
+      <hr style="border:1px dashed #ccc;margin:8px 0;">
+      <div style="text-align:center;font-size:11px;color:#999;">Thank you for dining with us! 🙏</div>
+    </div>
+  `;
+}
+
+window.closeReceipt = function () {
+  document.getElementById('receiptModal').classList.remove('open');
+};
+
+window.printReceipt = function () {
+  const content = document.getElementById('receiptContent').innerHTML;
+  document.getElementById('printArea').innerHTML = content;
+  document.getElementById('printArea').style.display = 'block';
+  window.print();
+  document.getElementById('printArea').style.display = 'none';
+};
+
+/* ══════════════════════════════════
    CHECKOUT
 ══════════════════════════════════ */
 window.openCheckoutModal = function () {
   if (!cart.length) { showToast('Cart is empty!', 'error'); return; }
+  const sub = cartSubtotal();
+  const disc = discountAmount();
+  const total = cartTotal();
   document.getElementById('modalBody').innerHTML =
     `<strong>${cart.length} item(s)</strong><br>` +
     cart.map(i => `${i.name} × ${i.quantity} = ₱${(i.price * i.quantity).toFixed(2)}`).join('<br>') +
-    `<br><br><strong>Total: ₱${cartTotal().toFixed(2)}</strong>`;
+    `<br><hr style="border-color:#3d2b14;margin:10px 0;">` +
+    (disc > 0 ? `<span style="color:var(--text-muted)">Subtotal: ₱${sub.toFixed(2)}</span><br><span style="color:var(--green)">Discount (${activePromo.code}): − ₱${disc.toFixed(2)}</span><br>` : '') +
+    `<br><strong>Total: ₱${total.toFixed(2)}</strong>`;
   document.getElementById('checkoutModal').classList.add('open');
 };
 
@@ -201,13 +372,23 @@ window.closeModal = function () {
 window.checkout = async function () {
   closeModal();
   const orderItems = cart.map(i => ({ name: i.name, price: i.price, quantity: i.quantity }));
-  const { error } = await sb.from('orders').insert([{
+  const total = cartTotal();
+  const { data, error } = await sb.from('orders').insert([{
     order_items: orderItems,
-    total: cartTotal(),
-    cashier: currentUser.username
-  }]);
+    total,
+    cashier: currentUser.username,
+    discount_code: activePromo ? activePromo.code : null,
+    discount_amount: discountAmount()
+  }]).select();
+
   if (error) { showToast('Error saving order!', 'error'); return; }
-  showToast(`Order saved! ₱${cartTotal().toFixed(2)}`, 'success');
+
+  // Show receipt
+  const orderNum = data && data[0] ? data[0].id.slice(0, 8).toUpperCase() : '';
+  document.getElementById('receiptContent').innerHTML = buildReceiptHTML(orderNum);
+  document.getElementById('receiptModal').classList.add('open');
+
+  showToast(`Order saved! ₱${total.toFixed(2)}`, 'success');
   clearCart();
 };
 
@@ -336,7 +517,8 @@ window.showPage = function (name, btn) {
   document.getElementById('page-' + name).classList.add('active');
   btn.classList.add('active');
   if (name === 'products') renderProductsTable();
-  if (name === 'reports') loadReports();
+  if (name === 'reports')  loadReports();
+  if (name === 'promos')   renderPromosTable();
 };
 
 /* ══════════════════════════════════
