@@ -6,13 +6,10 @@ let cart = [];
 let allProducts = [];
 let allPromos = [];
 let allStaff = [];
-let allRequests = [];
 let selectedCategory = 'All';
 let activePromo = null;
 let selectedPayment = 'Cash';
 let queueCounter = 1;
-let selectedRequestFilter = 'Pending';
-let currentCaptcha = generateCaptcha();
 let settings = { name: "Mommy's FoodHub", address: '', contact: '', footer: 'Thank you for dining with us! 🙏' };
 
 const DEMO_USERS = [
@@ -20,101 +17,7 @@ const DEMO_USERS = [
   { username: 'cashier', password_plain: 'cashier1', role: 'Cashier' },
 ];
 
-/* ══════════ CAPTCHA ══════════ */
-function generateCaptcha() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code = '';
-  for (let i = 0; i < 5; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
-}
-
-function displayCaptcha() {
-  currentCaptcha = generateCaptcha();
-  document.getElementById('captchaCode').textContent = currentCaptcha;
-}
-
 /* ══════════ AUTH ══════════ */
-window.showSignupForm = function () {
-  document.getElementById('loginForm').style.display = 'none';
-  document.getElementById('signupForm').style.display = 'block';
-  displayCaptcha();
-  document.getElementById('signupError').textContent = '';
-};
-
-window.showLoginForm = function () {
-  document.getElementById('signupForm').style.display = 'none';
-  document.getElementById('loginForm').style.display = 'block';
-  document.getElementById('signupName').value = '';
-  document.getElementById('signupEmail').value = '';
-  document.getElementById('signupAddress').value = '';
-  document.getElementById('signupRole').value = '';
-  document.getElementById('signupPass').value = '';
-  document.getElementById('signupIDPic').value = '';
-  document.getElementById('captchaInput').value = '';
-};
-
-window.submitSignup = async function () {
-  const name = document.getElementById('signupName').value.trim();
-  const email = document.getElementById('signupEmail').value.trim();
-  const address = document.getElementById('signupAddress').value.trim();
-  const role = document.getElementById('signupRole').value;
-  const password = document.getElementById('signupPass').value;
-  const captchaInput = document.getElementById('captchaInput').value.trim().toUpperCase();
-  const idPicFile = document.getElementById('signupIDPic').files[0];
-  const errEl = document.getElementById('signupError');
-  errEl.textContent = '';
-  
-  if (!name || !email || !address || !role || !password) {
-    errEl.textContent = 'Please fill in all fields';
-    return;
-  }
-  if (!idPicFile) {
-    errEl.textContent = 'Please upload an ID picture';
-    return;
-  }
-  if (captchaInput !== currentCaptcha) {
-    errEl.textContent = 'Incorrect CAPTCHA. Please try again.';
-    displayCaptcha();
-    document.getElementById('captchaInput').value = '';
-    return;
-  }
-  if (!/^[\w\.-]+@[\w\.-]+\.\w+$/.test(email)) {
-    errEl.textContent = 'Invalid email address';
-    return;
-  }
-  
-  // Convert image to base64
-  const reader = new FileReader();
-  reader.onload = async function(e) {
-    const pictureData = e.target.result;
-    const request = {
-      full_name: name,
-      email: email,
-      address: address,
-      business_type: role,
-      password_hash: btoa(password), // Simple base64 encoding
-      id_picture: pictureData,
-      status: 'Pending',
-      created_at: new Date().toISOString()
-    };
-    
-    try {
-      const { error } = await sb.from('business_requests').insert([request]);
-      if (error) throw error;
-      
-      errEl.style.color = 'var(--green)';
-      errEl.textContent = '✓ Request submitted! Admin will review it soon.';
-      setTimeout(() => showLoginForm(), 2000);
-    } catch (err) {
-      errEl.textContent = 'Error submitting request. Try again later.';
-      console.error(err);
-    }
-  };
-  reader.readAsDataURL(idPicFile);
-};
-
 window.doLogin = async function () {
   const u = document.getElementById('loginUser').value.trim();
   const p = document.getElementById('loginPass').value;
@@ -163,7 +66,6 @@ async function init() {
   loadSettings();
   await loadProducts();
   await loadPromos();
-  await loadRequests();
   renderCatFilters();
   renderProductGrid();
   updateOfflineBadge();
@@ -292,11 +194,12 @@ function renderCart() {
     dl.style.display = 'block';
     dl.textContent = `− ₱${discountAmount().toFixed(2)} (${activePromo.code})`;
   } else { dl.style.display = 'none'; }
-  // Show change calc only for cash
   document.getElementById('changeCalc').style.display = selectedPayment === 'Cash' ? 'block' : 'none';
   calcChange();
-  if (!cart.length) { wrap.innerHTML = '<div class="cart-empty">No items yet.<br>Tap a product to add.</div>'; return; }
-  wrap.innerHTML = cart.map(i => `
+
+  const cartHTML = !cart.length
+    ? '<div class="cart-empty">No items yet.<br>Tap a product to add.</div>'
+    : cart.map(i => `
     <div class="cart-item">
       <div style="flex:1"><div class="ci-name">${i.name}</div><div class="ci-sub">₱${parseFloat(i.price).toFixed(2)} each</div></div>
       <div class="qty-ctrl">
@@ -307,6 +210,26 @@ function renderCart() {
       <div class="ci-total">₱${(i.price * i.quantity).toFixed(2)}</div>
       <button class="ci-del" onclick="removeFromCart('${i.id}')">×</button>
     </div>`).join('');
+
+  if (wrap) wrap.innerHTML = cartHTML;
+
+  // Sync mobile cart
+  const mobileWrap = document.getElementById('cartItemsMobile');
+  if (mobileWrap) mobileWrap.innerHTML = cartHTML;
+
+  // Sync mobile footer
+  const mobileFooter = document.getElementById('cartFooterMobile');
+  if (mobileFooter) mobileFooter.innerHTML = document.getElementById('cartFooter')
+    ? document.querySelector('.cart-footer').innerHTML : '';
+
+  // Update FAB
+  const totalItems = cart.reduce((s,i) => s+i.quantity, 0);
+  const fabCount = document.getElementById('cartFabCount');
+  const fabTotal = document.getElementById('cartFabTotal');
+  const fab = document.getElementById('cartFab');
+  if (fabCount) fabCount.textContent = totalItems;
+  if (fabTotal) fabTotal.textContent = '₱'+total.toFixed(2);
+  if (fab) fab.classList.toggle('has-items', totalItems > 0);
 }
 
 /* ══════════ PAYMENT & CHANGE ══════════ */
@@ -382,103 +305,6 @@ function renderPromosTable() {
     <td><button class="btn-icon" onclick="editPromo('${p.id}')">✏️</button><button class="btn-icon" onclick="deletePromo('${p.id}')">🗑</button></td>
   </tr>`).join('');
 }
-
-/* ══════════ REQUESTS ══════════ */
-async function loadRequests() {
-  const { data, error } = await sb.from('business_requests').select('*').order('created_at', { ascending: false });
-  if (!error) allRequests = data || [];
-}
-
-window.filterRequests = function (status, btn) {
-  selectedRequestFilter = status;
-  document.querySelectorAll('.requests-controls .cat-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  renderRequestsGrid();
-};
-
-function renderRequestsGrid() {
-  const grid = document.getElementById('requestsGrid');
-  const filtered = selectedRequestFilter === 'All' 
-    ? allRequests 
-    : allRequests.filter(r => r.status === selectedRequestFilter);
-  
-  if (!filtered.length) {
-    grid.innerHTML = '<div class="request-empty">No requests found.</div>';
-    return;
-  }
-  
-  grid.innerHTML = filtered.map(req => `
-    <div class="request-card ${req.status.toLowerCase()}">
-      <div class="request-status ${req.status.toLowerCase()}">${req.status}</div>
-      <div class="request-field">
-        <div class="request-field-label">Full Name</div>
-        <div class="request-field-val">${req.full_name}</div>
-      </div>
-      <div class="request-field">
-        <div class="request-field-label">Email</div>
-        <div class="request-field-val">${req.email}</div>
-      </div>
-      <div class="request-field">
-        <div class="request-field-label">Address</div>
-        <div class="request-field-val">${req.address}</div>
-      </div>
-      <div class="request-field">
-        <div class="request-field-label">Business Type</div>
-        <div class="request-field-val">${req.business_type}</div>
-      </div>
-      ${req.id_picture ? `<img src="${req.id_picture}" alt="ID" class="request-idpic">` : ''}
-      <div class="request-field">
-        <div class="request-field-label">Applied</div>
-        <div class="request-field-val">${new Date(req.created_at).toLocaleDateString()}</div>
-      </div>
-      ${req.status === 'Pending' ? `
-        <div class="request-actions">
-          <button class="btn-accept" onclick="acceptRequest('${req.id}')">✓ Accept</button>
-          <button class="btn-reject" onclick="rejectRequest('${req.id}')">✗ Reject</button>
-        </div>
-      ` : ''}
-    </div>
-  `).join('');
-}
-
-window.acceptRequest = async function (id) {
-  if (!confirm('Accept this business registration?')) return;
-  const req = allRequests.find(r => r.id === id);
-  if (!req) return;
-  
-  try {
-    // Create cashier account
-    const newCashier = {
-      username: req.email.split('@')[0], // Use part of email as username
-      password_plain: atob(req.password_hash),
-      role: 'Cashier'
-    };
-    
-    await sb.from('cashiers').insert([newCashier]);
-    await sb.from('business_requests').update({ status: 'Approved' }).eq('id', id);
-    await loadRequests();
-    renderRequestsGrid();
-    showToast(`✓ ${req.full_name} approved! Credentials sent via email.`, 'success');
-  } catch (err) {
-    showToast('Error approving request', 'error');
-    console.error(err);
-  }
-};
-
-window.rejectRequest = async function (id) {
-  if (!confirm('Reject this registration?')) return;
-  const req = allRequests.find(r => r.id === id);
-  if (!req) return;
-  
-  try {
-    await sb.from('business_requests').update({ status: 'Rejected' }).eq('id', id);
-    await loadRequests();
-    renderRequestsGrid();
-    showToast(`✗ ${req.full_name}'s request rejected.`, 'success');
-  } catch (err) {
-    showToast('Error rejecting request', 'error');
-  }
-};
 
 /* ══════════ STAFF ══════════ */
 window.saveStaff = async function () {
@@ -782,16 +608,42 @@ window.exportToExcel = async function () {
   showToast('Exported!', 'success');
 };
 
+/* ══════════ MOBILE UI ══════════ */
+window.toggleMobileCart = function () {
+  const drawer = document.getElementById('cartDrawer');
+  const overlay = document.getElementById('cartDrawerOverlay');
+  const isOpen = drawer.classList.contains('open');
+  drawer.classList.toggle('open', !isOpen);
+  overlay.classList.toggle('open', !isOpen);
+  // Sync footer into mobile drawer
+  if (!isOpen) {
+    const src = document.querySelector('#page-cashier .cart-footer');
+    const dest = document.getElementById('cartFooterMobile');
+    if (src && dest) dest.innerHTML = src.innerHTML;
+  }
+};
+
+window.showMoreMenu = function () {
+  document.getElementById('moreMenu').classList.add('open');
+  document.getElementById('moreMenuOverlay').classList.add('open');
+};
+window.closeMoreMenu = function () {
+  document.getElementById('moreMenu').classList.remove('open');
+  document.getElementById('moreMenuOverlay').classList.remove('open');
+};
+
 /* ══════════ NAVIGATION ══════════ */
 window.showPage = function (name, btn) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.bnav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
-  btn.classList.add('active');
+  if (btn) btn.classList.add('active');
+  // sync both navbars
+  document.querySelectorAll(`[data-page="${name}"]`).forEach(b => b.classList.add('active'));
   if (name === 'products') renderProductsTable();
   if (name === 'reports')  loadReports();
   if (name === 'promos')   renderPromosTable();
-  if (name === 'requests') renderRequestsGrid();
   if (name === 'staff')    { loadStaff().then(renderStaffTable); }
   if (name === 'settings') loadSettings();
 };
@@ -803,4 +655,112 @@ function showToast(msg, type='') {
   t.textContent = msg; t.className = 'show '+type;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.className = '', 3000);
+}
+
+/* ══════════════════════════════
+   MOBILE CART DRAWER
+══════════════════════════════ */
+window.toggleMobileCart = function () {
+  const drawer = document.getElementById('cartDrawer');
+  const overlay = document.getElementById('cartDrawerOverlay');
+  const isOpen = drawer.classList.contains('open');
+  if (isOpen) {
+    drawer.classList.remove('open');
+    overlay.classList.remove('open');
+  } else {
+    syncMobileCart();
+    drawer.classList.add('open');
+    overlay.classList.add('open');
+  }
+};
+
+function syncMobileCart() {
+  // Mirror cart items into mobile drawer
+  const mobileItems = document.getElementById('cartItemsMobile');
+  const desktopItems = document.getElementById('cartItems');
+  mobileItems.innerHTML = desktopItems.innerHTML;
+
+  // Mirror cart footer
+  const mobileFooter = document.getElementById('cartFooterMobile');
+  const desktopFooter = document.querySelector('.cart-footer');
+  mobileFooter.innerHTML = desktopFooter.innerHTML;
+
+  // Update FAB
+  updateCartFab();
+}
+
+function updateCartFab() {
+  const count = cart.reduce((s, i) => s + i.quantity, 0);
+  const fabCount = document.getElementById('cartFabCount');
+  const fabTotal = document.getElementById('cartFabTotal');
+  if (fabCount) fabCount.textContent = count;
+  if (fabTotal) fabTotal.textContent = '₱' + cartTotal().toFixed(2);
+  // Hide FAB if cart empty
+  const fab = document.getElementById('cartFab');
+  if (fab) fab.style.display = count > 0 ? 'flex' : 'none';
+}
+
+// Patch renderCart to also update mobile
+const _origRenderCart = window.renderCart || (() => {});
+const origRenderCart = renderCart;
+// After every renderCart call, sync mobile too
+const _renderCartOrig = renderCart;
+
+/* ══════════════════════════════
+   MOBILE MORE MENU
+══════════════════════════════ */
+window.showMoreMenu = function () {
+  document.getElementById('moreMenu').style.display = 'flex';
+  document.getElementById('moreMenuOverlay').style.display = 'block';
+};
+window.closeMoreMenu = function () {
+  document.getElementById('moreMenu').style.display = 'none';
+  document.getElementById('moreMenuOverlay').style.display = 'none';
+};
+
+// Override showPage to also sync bottom nav + close drawer
+const _origShowPage = window.showPage;
+window.showPage = function (name, btn) {
+  _origShowPage(name, btn);
+  // Sync bottom nav active state
+  document.querySelectorAll('.bnav-btn').forEach(b => b.classList.remove('active'));
+  const bnavBtn = document.querySelector(`.bnav-btn[data-page="${name}"]`);
+  if (bnavBtn) bnavBtn.classList.add('active');
+  // Close cart drawer when switching pages
+  const drawer = document.getElementById('cartDrawer');
+  const overlay = document.getElementById('cartDrawerOverlay');
+  if (drawer) drawer.classList.remove('open');
+  if (overlay) overlay.classList.remove('open');
+};
+
+// Override clearCart to update FAB
+const _origClearCart = window.clearCart;
+window.clearCart = function () {
+  _origClearCart();
+  updateCartFab();
+  const drawer = document.getElementById('cartDrawer');
+  const overlay = document.getElementById('cartDrawerOverlay');
+  if (drawer) drawer.classList.remove('open');
+  if (overlay) overlay.classList.remove('open');
+};
+
+// Patch renderCart to always update FAB
+function patchRenderCart() {
+  const orig = renderCart;
+  window.renderCartAndFab = function () {
+    orig();
+    updateCartFab();
+  };
+}
+
+// Update FAB on every addToCart / changeQty
+const _origAddToCart = window.addToCart;
+const _origChangeQty = window.changeQty;
+const _origRemoveFromCart = window.removeFromCart;
+
+// Intercept at cart render level by hooking renderCart
+const __renderCart = renderCart;
+function renderCart() {
+  __renderCart();
+  updateCartFab();
 }
