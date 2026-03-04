@@ -1,5 +1,5 @@
 // Mommy's FoodHub — Service Worker
-const CACHE = 'foodhub-v1';
+const CACHE = 'foodhub-v3';
 const ASSETS = [
   '/',
   '/index.html',
