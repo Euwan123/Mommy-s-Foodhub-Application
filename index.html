@@ -45,6 +45,7 @@
       <button class="nav-btn active" onclick="showPage('cashier',this)" data-page="cashier">🧾 Cashier</button>
       <button class="nav-btn" onclick="showPage('products',this)" data-page="products">🍽 Menu</button>
       <button class="nav-btn" onclick="showPage('reports',this)" data-page="reports">📊 Reports</button>
+      <button class="nav-btn admin-only" onclick="showPage('inventory',this)" data-page="inventory">📦 Inventory</button>
       <button class="nav-btn admin-only" onclick="showPage('promos',this)" data-page="promos">🏷 Promos</button>
       <button class="nav-btn admin-only" onclick="showPage('staff',this)" data-page="staff">👥 Staff</button>
       <button class="nav-btn admin-only" onclick="showPage('settings',this)" data-page="settings">⚙️ Settings</button>
@@ -69,9 +70,15 @@
         <div class="product-grid" id="productGrid"></div>
       </div>
       <div class="cart-panel" id="desktopCart">
-        <div class="cart-header">🛒 Order</div>
+        <div class="cart-header">🛒 Order
+          <div class="order-type-row">
+            <button class="otype-btn active" onclick="setOrderType('Dine-in',this)">🍽 Dine-in</button>
+            <button class="otype-btn" onclick="setOrderType('Takeout',this)">🥡 Takeout</button>
+            <button class="otype-btn" onclick="setOrderType('Delivery',this)">🛵 Delivery</button>
+          </div>
+        </div>
         <div class="cart-items" id="cartItems"><div class="cart-empty">No items yet.<br>Tap a product to add.</div></div>
-        <div class="cart-footer" id="cartFooter">
+        <div class="cart-footer">
           <div class="form-group">
             <label>Payment Method</label>
             <div class="payment-btns">
@@ -106,7 +113,7 @@
               <div class="change-amt" id="changeAmt">₱0.00</div>
             </div>
           </div>
-          <button class="btn-checkout" onclick="openCheckoutModal()">✔ Checkout</button>
+          <button class="btn-checkout" onclick="openCheckoutModal('desktop')">✔ Checkout</button>
           <button class="btn-clear" onclick="clearCart()">Clear Order</button>
         </div>
       </div>
@@ -120,13 +127,20 @@
         <div class="form-title" id="formTitle">Add New Item</div>
         <input type="hidden" id="editId">
         <div class="form-group"><label>Item Name</label><input type="text" id="pName" placeholder="e.g. Adobo"></div>
-        <div class="form-group"><label>Price (₱)</label><input type="number" id="pPrice" placeholder="0.00" min="0" step="0.01"></div>
-        <div class="form-group"><label>Category</label><input type="text" id="pCat" placeholder="e.g. Main, Drinks, Sides"></div>
+        <div class="form-group"><label>Base Price (₱)</label><input type="number" id="pPrice" placeholder="0.00" min="0" step="0.01"></div>
+        <div class="form-group"><label>Category</label>
+          <select id="pCat"><option value="">Select category...</option></select>
+        </div>
+        <div class="form-group"><label>Stock Quantity</label><input type="number" id="pStock" placeholder="0" min="0"></div>
+        <div class="form-group" style="display:flex;align-items:center;gap:10px;">
+          <input type="checkbox" id="pAvailable" checked style="width:auto;">
+          <label for="pAvailable" style="text-transform:none;font-size:13px;">Available for ordering</label>
+        </div>
         <button class="btn-add" onclick="saveProduct()">Save Item</button>
-        <button class="btn-clear" style="margin-top:8px;" onclick="cancelEdit()">Cancel / Reset</button>
+        <button class="btn-clear" style="margin-top:8px;" onclick="cancelEdit()">Cancel</button>
       </div>
       <div class="form-card"><div class="products-table-wrap">
-        <table><thead><tr><th>Name</th><th>Price</th><th>Category</th><th></th></tr></thead>
+        <table><thead><tr><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th></th></tr></thead>
         <tbody id="productsTableBody"></tbody></table>
       </div></div>
     </div>
@@ -152,8 +166,23 @@
     </div>
     <div class="orders-table-wrap">
       <table>
-        <thead><tr><th>#</th><th>Queue</th><th>Date & Time</th><th>Cashier</th><th>Payment</th><th>Items</th><th>Notes</th><th>Total</th></tr></thead>
+        <thead><tr><th>#</th><th>Date & Time</th><th>Cashier</th><th>Type</th><th>Payment</th><th>Items</th><th>Notes</th><th>Status</th><th>Total</th></tr></thead>
         <tbody id="ordersBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="page" id="page-inventory">
+    <div class="section-title">Inventory</div>
+    <div class="stats-row" style="margin-bottom:20px;">
+      <div class="stat-card"><div class="stat-label">Total Products</div><div class="stat-val" id="invTotal">—</div></div>
+      <div class="stat-card"><div class="stat-label">Low Stock</div><div class="stat-val" style="color:var(--red);" id="invLow">—</div></div>
+      <div class="stat-card"><div class="stat-label">Out of Stock</div><div class="stat-val" style="color:var(--red);" id="invOut">—</div></div>
+    </div>
+    <div class="orders-table-wrap">
+      <table>
+        <thead><tr><th>Product</th><th>Category</th><th>Stock</th><th>Status</th><th>Last Updated</th><th></th></tr></thead>
+        <tbody id="inventoryBody"></tbody>
       </table>
     </div>
   </div>
@@ -185,16 +214,19 @@
       <div class="form-card">
         <div class="form-title" id="staffFormTitle">Add Staff</div>
         <input type="hidden" id="staffEditId">
+        <div class="form-group"><label>Full Name</label><input type="text" id="staffName" placeholder="e.g. Juan Dela Cruz"></div>
         <div class="form-group"><label>Username</label><input type="text" id="staffUser" placeholder="e.g. juan"></div>
         <div class="form-group"><label>Password</label><input type="text" id="staffPass" placeholder="password"></div>
-        <div class="form-group"><label>Role</label>
-          <select id="staffRole"><option value="Cashier">Cashier</option><option value="Admin">Admin</option></select>
+        <div class="form-group"><label>Position</label><input type="text" id="staffPosition" placeholder="e.g. Cashier"></div>
+        <div class="form-group"><label>Access Level</label>
+          <select id="staffRole"><option value="Staff">Staff</option><option value="Admin">Admin</option><option value="Manager">Manager</option></select>
         </div>
+        <div class="form-group"><label>Date of Birth</label><input type="date" id="staffDob"></div>
         <button class="btn-add" onclick="saveStaff()">Save Staff</button>
         <button class="btn-clear" style="margin-top:8px;" onclick="cancelStaffEdit()">Cancel</button>
       </div>
       <div class="form-card"><div class="products-table-wrap">
-        <table><thead><tr><th>Username</th><th>Role</th><th></th></tr></thead>
+        <table><thead><tr><th>Name</th><th>Username</th><th>Position</th><th>Access</th><th></th></tr></thead>
         <tbody id="staffTableBody"></tbody></table>
       </div></div>
     </div>
@@ -222,10 +254,15 @@
   <div class="drawer-handle"></div>
   <div class="cart-header" style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px 10px;">
     <span>🛒 Order</span>
-    <button onclick="closeMobileCart()" style="background:none;border:none;color:var(--text-muted);font-size:22px;cursor:pointer;line-height:1;">✕</button>
+    <button onclick="closeMobileCart()" style="background:none;border:none;color:var(--text-muted);font-size:22px;cursor:pointer;">✕</button>
+  </div>
+  <div class="order-type-row" style="padding:0 16px 10px;">
+    <button class="otype-btn active" onclick="setOrderTypeM('Dine-in',this)">🍽 Dine-in</button>
+    <button class="otype-btn" onclick="setOrderTypeM('Takeout',this)">🥡 Takeout</button>
+    <button class="otype-btn" onclick="setOrderTypeM('Delivery',this)">🛵 Delivery</button>
   </div>
   <div class="cart-items" id="cartItemsMobile"><div class="cart-empty">No items yet.</div></div>
-  <div class="cart-footer" id="cartFooterMobile">
+  <div class="cart-footer">
     <div class="form-group">
       <label>Payment Method</label>
       <div class="payment-btns">
@@ -260,21 +297,22 @@
         <div class="change-amt" id="changeAmtM">₱0.00</div>
       </div>
     </div>
-    <button class="btn-checkout" onclick="openCheckoutModalM()">✔ Checkout</button>
+    <button class="btn-checkout" onclick="openCheckoutModal('mobile')">✔ Checkout</button>
     <button class="btn-clear" onclick="clearCart()">Clear Order</button>
   </div>
 </div>
 
-<nav class="bottom-nav" id="bottomNav">
+<nav class="bottom-nav">
   <button class="bnav-btn active" onclick="showPage('cashier',this)" data-page="cashier">🧾<span>Cashier</span></button>
   <button class="bnav-btn" onclick="showPage('products',this)" data-page="products">🍽<span>Menu</span></button>
   <button class="bnav-btn" onclick="showPage('reports',this)" data-page="reports">📊<span>Reports</span></button>
-  <button class="bnav-btn admin-only" onclick="showPage('promos',this)" data-page="promos">🏷<span>Promos</span></button>
+  <button class="bnav-btn admin-only" onclick="showPage('inventory',this)" data-page="inventory">📦<span>Stock</span></button>
   <button class="bnav-btn" onclick="showMoreMenu()">⋯<span>More</span></button>
 </nav>
 
 <div class="more-menu-overlay" id="moreMenuOverlay" onclick="closeMoreMenu()"></div>
 <div class="more-menu" id="moreMenu">
+  <button class="admin-only" onclick="showPage('promos',null);closeMoreMenu()">🏷 Promos</button>
   <button class="admin-only" onclick="showPage('staff',null);closeMoreMenu()">👥 Staff</button>
   <button class="admin-only" onclick="showPage('settings',null);closeMoreMenu()">⚙️ Settings</button>
   <button onclick="doLogout();closeMoreMenu()">🚪 Logout</button>
@@ -306,6 +344,18 @@
     <div class="modal-footer" style="margin-top:20px;">
       <button class="btn-modal-cancel" onclick="closeReceipt()">Close</button>
       <button class="btn-modal-ok" onclick="printReceipt()">🖨 Print</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="stockModal">
+  <div class="modal-box">
+    <div class="modal-title">Update Stock</div>
+    <input type="hidden" id="stockProductId">
+    <div class="form-group" style="margin-top:12px;"><label>New Quantity</label><input type="number" id="stockQty" min="0" placeholder="0"></div>
+    <div class="modal-footer" style="margin-top:16px;">
+      <button class="btn-modal-cancel" onclick="closeStockModal()">Cancel</button>
+      <button class="btn-modal-ok" onclick="saveStock()">Update</button>
     </div>
   </div>
 </div>

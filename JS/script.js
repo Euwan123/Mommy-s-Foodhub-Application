@@ -3,13 +3,17 @@ const sb = window.supabase;
 let currentUser = null;
 let cart = [];
 let allProducts = [];
+let allCategories = [];
 let allPromos = [];
 let allStaff = [];
 let selectedCategory = 'All';
 let activePromo = null;
 let selectedPayment = 'Cash';
 let selectedPaymentM = 'Cash';
-let queueCounter = 1;
+let selectedOrderType = 'Dine-in';
+let selectedOrderTypeM = 'Dine-in';
+let orderCounter = 1;
+let checkoutSource = 'desktop';
 let settings = { name: "Mommy's FoodHub", address: '', contact: '', footer: 'Thank you for dining with us! 🙏' };
 
 window.doLogin = async function () {
@@ -18,46 +22,31 @@ window.doLogin = async function () {
   const errEl = document.getElementById('loginError');
   errEl.textContent = '';
   if (!u || !p) { errEl.textContent = 'Please enter username and password.'; return; }
-  let user = null;
-  try {
-    const { data, error } = await sb.from('cashiers').select('*').eq('username', u).eq('password_plain', p).single();
-    if (data) user = data;
-  } catch (_) {}
-  if (!user) { errEl.textContent = 'Invalid username or password.'; return; }
-  currentUser = user;
+  const { data, error } = await sb.from('Employee').select('*').eq('Username', u).eq('Password', p).single();
+  if (error || !data) { errEl.textContent = 'Invalid username or password.'; return; }
+  currentUser = data;
   document.getElementById('loginScreen').style.opacity = '0';
-  setTimeout(() => {
-    document.getElementById('loginScreen').style.display = 'none';
-    showWelcome(user);
-  }, 300);
+  setTimeout(() => { document.getElementById('loginScreen').style.display = 'none'; showWelcome(data); }, 300);
 };
 
 function showWelcome(user) {
   const ws = document.getElementById('welcomeScreen');
-  document.getElementById('welcomeName').textContent = 'Hey, ' + user.username + '!';
-  document.getElementById('welcomeRole').textContent = user.role;
+  document.getElementById('welcomeName').textContent = 'Hey, ' + user.Name + '!';
+  document.getElementById('welcomeRole').textContent = user.AccessLevel;
   ws.style.display = 'flex';
   setTimeout(() => ws.classList.add('show'), 10);
-  setTimeout(() => {
-    ws.classList.remove('show');
-    setTimeout(() => {
-      ws.style.display = 'none';
-      launchApp(user);
-    }, 500);
-  }, 2000);
+  setTimeout(() => { ws.classList.remove('show'); setTimeout(() => { ws.style.display = 'none'; launchApp(user); }, 500); }, 2200);
 }
 
 function launchApp(user) {
-  document.getElementById('cashierName').textContent = user.username;
+  document.getElementById('cashierName').textContent = user.Name;
   const rt = document.getElementById('roleTag');
-  rt.textContent = user.role;
-  rt.className = 'role-tag ' + (user.role === 'Admin' ? 'admin' : 'cashier');
-  document.querySelectorAll('.admin-only').forEach(el => {
-    el.style.display = user.role === 'Admin' ? '' : 'none';
-  });
+  rt.textContent = user.AccessLevel;
+  rt.className = 'role-tag ' + (user.AccessLevel === 'Admin' || user.AccessLevel === 'Manager' ? 'admin' : 'cashier');
+  const isAdmin = user.AccessLevel === 'Admin' || user.AccessLevel === 'Manager';
+  document.querySelectorAll('.admin-only').forEach(el => el.style.display = isAdmin ? '' : 'none');
   const app = document.getElementById('app');
-  app.style.display = 'flex';
-  app.style.flexDirection = 'column';
+  app.style.display = 'flex'; app.style.flexDirection = 'column';
   init();
 }
 
@@ -77,15 +66,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function init() {
   loadSettings();
+  await loadCategories();
   await loadProducts();
   await loadPromos();
   renderCatFilters();
   renderProductGrid();
+  populateCategoryDropdown();
   updateOfflineBadge();
   try {
     const today = new Date().toISOString().split('T')[0];
-    const { count } = await sb.from('orders').select('*', { count: 'exact', head: true }).gte('created_at', today + 'T00:00:00');
-    queueCounter = (count || 0) + 1;
+    const { count } = await sb.from('Order').select('*', { count: 'exact', head: true }).gte('OrderDateTime', today + 'T00:00:00');
+    orderCounter = (count || 0) + 1;
   } catch (_) {}
 }
 
@@ -111,30 +102,41 @@ window.saveSettings = function () {
   showToast('Settings saved!', 'success');
 };
 
+async function loadCategories() {
+  const { data } = await sb.from('Category').select('*').order('CategoryName');
+  allCategories = data || [];
+}
+
+function populateCategoryDropdown() {
+  const sel = document.getElementById('pCat');
+  sel.innerHTML = '<option value="">Select category...</option>';
+  allCategories.forEach(c => {
+    const o = document.createElement('option');
+    o.value = c.CategoryID; o.textContent = c.CategoryName;
+    sel.appendChild(o);
+  });
+}
+
 async function loadProducts() {
-  const { data, error } = await sb.from('products').select('*').order('name');
+  const { data, error } = await sb.from('Product').select('*, Category(CategoryName), Inventory(QuantityAvailable, LastUpdated)').order('Name');
   if (error) { showToast('Could not load products', 'error'); return; }
   allProducts = data || [];
 }
 
 window.filterProducts = function () { renderProductGrid(); };
 
-function getCategories() {
-  return ['All', ...[...new Set(allProducts.map(p => p.category || 'Other'))].sort()];
-}
-
 function renderCatFilters() {
   const wrap = document.getElementById('catFilters');
   wrap.innerHTML = '';
-  getCategories().forEach(cat => {
+  const cats = ['All', ...allCategories.map(c => c.CategoryName)];
+  cats.forEach(cat => {
     const btn = document.createElement('button');
     btn.className = 'cat-btn' + (cat === selectedCategory ? ' active' : '');
     btn.textContent = cat;
     btn.onclick = () => {
       selectedCategory = cat;
       document.querySelectorAll('#catFilters .cat-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      renderProductGrid();
+      btn.classList.add('active'); renderProductGrid();
     };
     wrap.appendChild(btn);
   });
@@ -144,24 +146,28 @@ function renderProductGrid() {
   const q = document.getElementById('menuSearch').value.toLowerCase();
   const grid = document.getElementById('productGrid');
   const filtered = allProducts.filter(p => {
-    const matchCat = selectedCategory === 'All' || (p.category || 'Other') === selectedCategory;
-    return matchCat && (!q || p.name.toLowerCase().includes(q));
+    const catName = p.Category?.CategoryName || 'Other';
+    const matchCat = selectedCategory === 'All' || catName === selectedCategory;
+    const matchSearch = !q || p.Name.toLowerCase().includes(q);
+    return matchCat && matchSearch && p.IsAvailable;
   });
   if (!filtered.length) { grid.innerHTML = '<div class="no-products">No items found.</div>'; return; }
   grid.innerHTML = '';
   filtered.forEach(p => {
+    const stock = p.Inventory?.QuantityAvailable ?? p.StockQuantity;
+    const low = stock <= 5;
     const d = document.createElement('div');
-    d.className = 'product-card';
-    d.innerHTML = `<div class="p-name">${p.name}</div><div class="p-price">₱${parseFloat(p.price).toFixed(2)}</div><div class="p-cat">${p.category || ''}</div>`;
+    d.className = 'product-card' + (low ? ' low-stock' : '');
+    d.innerHTML = `<div class="p-name">${p.Name}</div><div class="p-price">₱${parseFloat(p.BasePrice).toFixed(2)}</div><div class="p-cat">${p.Category?.CategoryName || ''}</div>${low ? `<div class="p-stock-badge">Low: ${stock}</div>` : ''}`;
     d.onclick = () => addToCart(p);
     grid.appendChild(d);
   });
 }
 
 function addToCart(p) {
-  const ex = cart.find(i => i.id === p.id);
+  const ex = cart.find(i => i.id === p.ProductID);
   if (ex) ex.quantity++;
-  else cart.push({ id: p.id, name: p.name, price: p.price, quantity: 1 });
+  else cart.push({ id: p.ProductID, name: p.Name, price: parseFloat(p.BasePrice), quantity: 1 });
   renderCart();
 }
 
@@ -177,8 +183,7 @@ window.removeFromCart = function (id) { cart = cart.filter(i => i.id !== id); re
 
 window.clearCart = function () {
   cart = []; activePromo = null;
-  const fields = ['promoInput','orderNotes','cashReceived','promoInputM','orderNotesM','cashReceivedM'];
-  fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['promoInput','orderNotes','cashReceived','promoInputM','orderNotesM','cashReceivedM'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   ['promoMsg','promoMsgM'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ''; });
   ['changeAmt','changeAmtM'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '₱0.00'; });
   renderCart();
@@ -199,45 +204,30 @@ function renderCart() {
   const total = cartTotal();
   const disc = discountAmount();
   const totalItems = cart.reduce((s, i) => s + i.quantity, 0);
-
   const cartHTML = !cart.length
     ? '<div class="cart-empty">No items yet.<br>Tap a product to add.</div>'
     : cart.map(i => `
       <div class="cart-item">
-        <div style="flex:1"><div class="ci-name">${i.name}</div><div class="ci-sub">₱${parseFloat(i.price).toFixed(2)} each</div></div>
+        <div style="flex:1"><div class="ci-name">${i.name}</div><div class="ci-sub">₱${i.price.toFixed(2)} each</div></div>
         <div class="qty-ctrl">
-          <button class="qty-btn" onclick="changeQty('${i.id}',-1)">−</button>
+          <button class="qty-btn" onclick="changeQty(${i.id},-1)">−</button>
           <span class="qty-val">${i.quantity}</span>
-          <button class="qty-btn" onclick="changeQty('${i.id}',1)">+</button>
+          <button class="qty-btn" onclick="changeQty(${i.id},1)">+</button>
         </div>
         <div class="ci-total">₱${(i.price * i.quantity).toFixed(2)}</div>
-        <button class="ci-del" onclick="removeFromCart('${i.id}')">×</button>
+        <button class="ci-del" onclick="removeFromCart(${i.id})">×</button>
       </div>`).join('');
 
-  ['cartItems','cartItemsMobile'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.innerHTML = cartHTML;
-  });
-
-  ['cartTotal','cartTotalM'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = total.toFixed(2);
-  });
-
+  ['cartItems','cartItemsMobile'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = cartHTML; });
+  ['cartTotal','cartTotalM'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = total.toFixed(2); });
   ['discountLine','discountLineM'].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
+    const el = document.getElementById(id); if (!el) return;
     if (activePromo && disc > 0) { el.style.display = 'block'; el.textContent = `− ₱${disc.toFixed(2)} (${activePromo.code})`; }
     else el.style.display = 'none';
   });
-
-  const cc = document.getElementById('changeCalc');
-  if (cc) cc.style.display = selectedPayment === 'Cash' ? 'block' : 'none';
-  const ccm = document.getElementById('changeCalcM');
-  if (ccm) ccm.style.display = selectedPaymentM === 'Cash' ? 'block' : 'none';
-
+  const cc = document.getElementById('changeCalc'); if (cc) cc.style.display = selectedPayment === 'Cash' ? 'block' : 'none';
+  const ccm = document.getElementById('changeCalcM'); if (ccm) ccm.style.display = selectedPaymentM === 'Cash' ? 'block' : 'none';
   calcChange(); calcChangeM();
-
   const fab = document.getElementById('cartFab');
   const fabCount = document.getElementById('cartFabCount');
   const fabTotal = document.getElementById('cartFabTotal');
@@ -246,32 +236,22 @@ function renderCart() {
   if (fabTotal) fabTotal.textContent = '₱' + total.toFixed(2);
 }
 
-window.setPayment = function (method, btn) {
-  selectedPayment = method;
-  document.querySelectorAll('.pay-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  renderCart();
-};
-
-window.setPaymentM = function (method, btn) {
-  selectedPaymentM = method;
-  document.querySelectorAll('.pay-btn-m').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  renderCart();
-};
+window.setPayment = function (m, btn) { selectedPayment = m; document.querySelectorAll('.pay-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); renderCart(); };
+window.setPaymentM = function (m, btn) { selectedPaymentM = m; document.querySelectorAll('.pay-btn-m').forEach(b => b.classList.remove('active')); btn.classList.add('active'); renderCart(); };
+window.setOrderType = function (t, btn) { selectedOrderType = t; document.querySelectorAll('.cart-panel .otype-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); };
+window.setOrderTypeM = function (t, btn) { selectedOrderTypeM = t; document.querySelectorAll('.cart-drawer .otype-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); };
 
 window.calcChange = function () {
-  const received = parseFloat(document.getElementById('cashReceived')?.value) || 0;
-  const change = received - cartTotal();
+  const r = parseFloat(document.getElementById('cashReceived')?.value) || 0;
+  const c = r - cartTotal();
   const el = document.getElementById('changeAmt');
-  if (el) { el.textContent = '₱' + Math.max(0, change).toFixed(2); el.style.color = change >= 0 ? 'var(--green)' : 'var(--red)'; }
+  if (el) { el.textContent = '₱' + Math.max(0, c).toFixed(2); el.style.color = c >= 0 ? 'var(--green)' : 'var(--red)'; }
 };
-
 window.calcChangeM = function () {
-  const received = parseFloat(document.getElementById('cashReceivedM')?.value) || 0;
-  const change = received - cartTotal();
+  const r = parseFloat(document.getElementById('cashReceivedM')?.value) || 0;
+  const c = r - cartTotal();
   const el = document.getElementById('changeAmtM');
-  if (el) { el.textContent = '₱' + Math.max(0, change).toFixed(2); el.style.color = change >= 0 ? 'var(--green)' : 'var(--red)'; }
+  if (el) { el.textContent = '₱' + Math.max(0, c).toFixed(2); el.style.color = c >= 0 ? 'var(--green)' : 'var(--red)'; }
 };
 
 async function loadPromos() {
@@ -302,7 +282,6 @@ window.savePromo = async function () {
   showToast('Promo saved!', 'success'); cancelPromoEdit();
   await loadPromos(); renderPromosTable();
 };
-
 window.editPromo = function (id) {
   const p = allPromos.find(x => x.id === id); if (!p) return;
   document.getElementById('promoEditId').value = p.id;
@@ -311,20 +290,17 @@ window.editPromo = function (id) {
   document.getElementById('promoValue').value = p.value;
   document.getElementById('promoFormTitle').textContent = 'Edit Promo';
 };
-
 window.deletePromo = async function (id) {
-  if (!confirm('Delete this promo?')) return;
+  if (!confirm('Delete?')) return;
   await sb.from('promos').delete().eq('id', id);
   showToast('Deleted', 'success'); await loadPromos(); renderPromosTable();
 };
-
 window.cancelPromoEdit = function () {
   document.getElementById('promoEditId').value = '';
   document.getElementById('promoCode').value = '';
   document.getElementById('promoValue').value = '';
   document.getElementById('promoFormTitle').textContent = 'Add Promo Code';
 };
-
 function renderPromosTable() {
   const tbody = document.getElementById('promosTableBody');
   if (!allPromos.length) { tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-muted);text-align:center;padding:24px">No promos yet.</td></tr>'; return; }
@@ -337,113 +313,134 @@ function renderPromosTable() {
 }
 
 window.saveStaff = async function () {
+  const name = document.getElementById('staffName').value.trim();
   const username = document.getElementById('staffUser').value.trim();
-  const password_plain = document.getElementById('staffPass').value.trim();
+  const password = document.getElementById('staffPass').value.trim();
+  const position = document.getElementById('staffPosition').value.trim();
   const role = document.getElementById('staffRole').value;
+  const dob = document.getElementById('staffDob').value;
   const editId = document.getElementById('staffEditId').value;
-  if (!username || !password_plain) { showToast('Fill in all fields', 'error'); return; }
-  if (editId) await sb.from('cashiers').update({ username, password_plain, role }).eq('id', editId);
-  else await sb.from('cashiers').insert([{ username, password_plain, role }]);
+  if (!name || !username || !password || !dob) { showToast('Fill in all required fields', 'error'); return; }
+  const payload = { Name: name, Username: username, Password: password, Position: position || 'Cashier', AccessLevel: role, DateofBirth: dob };
+  if (editId) await sb.from('Employee').update(payload).eq('EmployeeID', editId);
+  else await sb.from('Employee').insert([payload]);
   showToast('Staff saved!', 'success'); cancelStaffEdit();
   await loadStaff(); renderStaffTable();
 };
 
 async function loadStaff() {
-  const { data } = await sb.from('cashiers').select('*').order('username');
+  const { data } = await sb.from('Employee').select('*').order('Name');
   allStaff = data || [];
 }
 
 window.editStaff = function (id) {
-  const s = allStaff.find(x => x.id === id); if (!s) return;
-  document.getElementById('staffEditId').value = s.id;
-  document.getElementById('staffUser').value = s.username;
-  document.getElementById('staffPass').value = s.password_plain;
-  document.getElementById('staffRole').value = s.role;
+  const s = allStaff.find(x => x.EmployeeID === id); if (!s) return;
+  document.getElementById('staffEditId').value = s.EmployeeID;
+  document.getElementById('staffName').value = s.Name;
+  document.getElementById('staffUser').value = s.Username || '';
+  document.getElementById('staffPass').value = s.Password || '';
+  document.getElementById('staffPosition').value = s.Position || '';
+  document.getElementById('staffRole').value = s.AccessLevel;
+  document.getElementById('staffDob').value = s.DateofBirth?.split('T')[0] || '';
   document.getElementById('staffFormTitle').textContent = 'Edit Staff';
 };
 
 window.deleteStaff = async function (id) {
-  if (id === currentUser.id) { showToast("Can't delete yourself!", 'error'); return; }
+  if (id === currentUser.EmployeeID) { showToast("Can't delete yourself!", 'error'); return; }
   if (!confirm('Delete this staff?')) return;
-  await sb.from('cashiers').delete().eq('id', id);
+  await sb.from('Employee').delete().eq('EmployeeID', id);
   showToast('Deleted', 'success'); await loadStaff(); renderStaffTable();
 };
 
 window.cancelStaffEdit = function () {
-  document.getElementById('staffEditId').value = '';
-  document.getElementById('staffUser').value = '';
-  document.getElementById('staffPass').value = '';
+  ['staffEditId','staffName','staffUser','staffPass','staffPosition','staffDob'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('staffFormTitle').textContent = 'Add Staff';
 };
 
 function renderStaffTable() {
   const tbody = document.getElementById('staffTableBody');
-  if (!allStaff.length) { tbody.innerHTML = '<tr><td colspan="3" style="color:var(--text-muted);text-align:center;padding:24px">No staff yet.</td></tr>'; return; }
+  if (!allStaff.length) { tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-muted);text-align:center;padding:24px">No staff yet.</td></tr>'; return; }
   tbody.innerHTML = allStaff.map(s => `<tr>
-    <td>${s.username}</td>
-    <td><span class="badge">${s.role}</span></td>
-    <td><button class="btn-icon" onclick="editStaff('${s.id}')">✏️</button><button class="btn-icon" onclick="deleteStaff('${s.id}')">🗑</button></td>
+    <td>${s.Name}</td><td>${s.Username || '—'}</td><td>${s.Position}</td>
+    <td><span class="badge">${s.AccessLevel}</span></td>
+    <td><button class="btn-icon" onclick="editStaff(${s.EmployeeID})">✏️</button><button class="btn-icon" onclick="deleteStaff(${s.EmployeeID})">🗑</button></td>
   </tr>`).join('');
 }
 
-function buildModalSummary(payment, notes) {
+window.openCheckoutModal = function (source) {
+  if (!cart.length) { showToast('Cart is empty!', 'error'); return; }
+  checkoutSource = source;
+  const isMobile = source === 'mobile';
+  const payment = isMobile ? selectedPaymentM : selectedPayment;
+  const orderType = isMobile ? selectedOrderTypeM : selectedOrderType;
+  const notes = document.getElementById(isMobile ? 'orderNotesM' : 'orderNotes').value.trim();
   const sub = cartSubtotal(), disc = discountAmount(), total = cartTotal();
-  const cash = parseFloat(document.getElementById(payment === 'Cash' ? 'cashReceived' : 'cashReceivedM')?.value) || 0;
+  const cash = parseFloat(document.getElementById(isMobile ? 'cashReceivedM' : 'cashReceived')?.value) || 0;
   const change = payment === 'Cash' ? Math.max(0, cash - total) : null;
-  return `<strong>Queue #${queueCounter}</strong> · ${cart.length} item(s)<br>` +
+  document.getElementById('modalBody').innerHTML =
+    `<strong>Order #${orderCounter}</strong> · ${orderType}<br>` +
     cart.map(i => `${i.name} × ${i.quantity} = ₱${(i.price * i.quantity).toFixed(2)}`).join('<br>') +
     `<hr style="border-color:#3d2b14;margin:10px 0;">` +
-    (disc > 0 ? `<span style="color:var(--text-muted)">Subtotal: ₱${sub.toFixed(2)}</span><br><span style="color:var(--green)">Discount (${activePromo.code}): − ₱${disc.toFixed(2)}</span><br>` : '') +
+    (disc > 0 ? `<span style="color:var(--text-muted)">Subtotal: ₱${sub.toFixed(2)}</span><br><span style="color:var(--green)">Discount: − ₱${disc.toFixed(2)}</span><br>` : '') +
     `<strong>Total: ₱${total.toFixed(2)}</strong><br>Payment: ${payment}` +
     (notes ? `<br>Notes: ${notes}` : '') +
     (change !== null ? `<br>Change: <strong style="color:var(--green)">₱${change.toFixed(2)}</strong>` : '');
-}
-
-window.openCheckoutModal = function () {
-  if (!cart.length) { showToast('Cart is empty!', 'error'); return; }
-  const notes = document.getElementById('orderNotes').value.trim();
-  document.getElementById('modalBody').innerHTML = buildModalSummary(selectedPayment, notes);
   document.getElementById('checkoutModal').classList.add('open');
-  document.getElementById('checkoutModal').dataset.source = 'desktop';
-};
-
-window.openCheckoutModalM = function () {
-  if (!cart.length) { showToast('Cart is empty!', 'error'); return; }
-  const notes = document.getElementById('orderNotesM').value.trim();
-  document.getElementById('modalBody').innerHTML = buildModalSummary(selectedPaymentM, notes);
-  document.getElementById('checkoutModal').classList.add('open');
-  document.getElementById('checkoutModal').dataset.source = 'mobile';
 };
 
 window.closeModal = function () { document.getElementById('checkoutModal').classList.remove('open'); };
 
 window.checkout = async function () {
   closeModal();
-  const isMobile = document.getElementById('checkoutModal').dataset.source === 'mobile';
+  const isMobile = checkoutSource === 'mobile';
   const payment = isMobile ? selectedPaymentM : selectedPayment;
+  const orderType = isMobile ? selectedOrderTypeM : selectedOrderType;
   const notes = document.getElementById(isMobile ? 'orderNotesM' : 'orderNotes').value.trim();
+  const total = cartTotal();
+  const disc = discountAmount();
+
   const orderData = {
-    order_items: cart.map(i => ({ name: i.name, price: i.price, quantity: i.quantity })),
-    total: cartTotal(),
-    cashier: currentUser.username,
-    discount_code: activePromo ? activePromo.code : null,
-    discount_amount: discountAmount(),
-    payment_method: payment,
-    notes,
-    queue_number: queueCounter,
+    EmployeeID: currentUser.EmployeeID,
+    OrderDateTime: new Date().toISOString(),
+    OrderType: orderType,
+    PaymentMethod: payment,
+    TotalAmount: total,
+    Status: 'Completed',
+    Notes: notes || null,
+    DiscountCode: activePromo ? activePromo.code : null,
+    DiscountAmount: disc,
   };
+
+  const offlinePayload = { ...orderData, items: cart.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity })), orderNum: orderCounter };
+
   if (!navigator.onLine) {
-    saveOfflineOrder(orderData);
-    showToast(`Saved offline! Queue #${queueCounter}`, 'success');
-    showReceiptFromData(orderData, null);
-    queueCounter++; clearCart(); closeMobileCart(); return;
+    saveOfflineOrder(offlinePayload);
+    showToast(`Saved offline! Order #${orderCounter}`, 'success');
+    showReceiptFromData(offlinePayload, null);
+    orderCounter++; clearCart(); closeMobileCart(); return;
   }
-  const { data, error } = await sb.from('orders').insert([{ ...orderData, created_at: new Date().toISOString() }]).select();
-  if (error) { saveOfflineOrder(orderData); showToast('Saved offline — will sync later', 'error'); }
-  else showToast(`Order saved! Queue #${queueCounter} ₱${cartTotal().toFixed(2)}`, 'success');
-  const orderId = data?.[0]?.id?.toString().slice(0, 8).toUpperCase() || null;
-  showReceiptFromData(orderData, orderId);
-  queueCounter++; clearCart(); closeMobileCart();
+
+  const { data: orderRow, error } = await sb.from('Order').insert([orderData]).select().single();
+  if (error) { saveOfflineOrder(offlinePayload); showToast('Saved offline — will sync later', 'error'); orderCounter++; clearCart(); closeMobileCart(); return; }
+
+  const details = cart.map(i => ({
+    OrderID: orderRow.OrderID,
+    ProductID: i.id,
+    Quantity: i.quantity,
+    Price: i.price,
+    Subtotal: i.price * i.quantity,
+  }));
+  await sb.from('OrderDetails').insert(details);
+
+  for (const i of cart) {
+    await sb.from('Inventory').upsert({ ProductID: i.id, QuantityAvailable: Math.max(0, (allProducts.find(p => p.ProductID === i.id)?.Inventory?.QuantityAvailable ?? 0) - i.quantity), LastUpdated: new Date().toISOString() }, { onConflict: 'ProductID' });
+  }
+
+  showToast(`Order #${orderCounter} placed! ₱${total.toFixed(2)}`, 'success');
+  showReceiptFromData({ ...offlinePayload, OrderID: orderRow.OrderID }, orderRow.OrderID);
+  orderCounter++;
+  await loadProducts(); renderProductGrid();
+  clearCart(); closeMobileCart();
 };
 
 function saveOfflineOrder(order) {
@@ -458,21 +455,19 @@ window.syncOfflineOrders = async function () {
   if (!pending.length) { showToast('No offline orders to sync', ''); return; }
   if (!navigator.onLine) { showToast('Still offline!', 'error'); return; }
   let synced = 0;
-  for (const order of pending) {
-    const { error } = await sb.from('orders').insert([{ ...order, created_at: order.saved_at }]);
-    if (!error) synced++;
+  for (const o of pending) {
+    const { data: orderRow, error } = await sb.from('Order').insert([{ EmployeeID: o.EmployeeID, OrderDateTime: o.saved_at, OrderType: o.OrderType, PaymentMethod: o.PaymentMethod, TotalAmount: o.TotalAmount, Status: 'Completed', Notes: o.Notes, DiscountCode: o.DiscountCode, DiscountAmount: o.DiscountAmount }]).select().single();
+    if (!error && orderRow) {
+      await sb.from('OrderDetails').insert(o.items.map(i => ({ OrderID: orderRow.OrderID, ProductID: i.id, Quantity: i.quantity, Price: i.price, Subtotal: i.price * i.quantity })));
+      synced++;
+    }
   }
-  if (synced > 0) {
-    localStorage.setItem('offline_orders', JSON.stringify(pending.slice(synced)));
-    showToast(`Synced ${synced} order(s)!`, 'success');
-    updateOfflineBadge();
-  }
+  if (synced > 0) { localStorage.setItem('offline_orders', JSON.stringify(pending.slice(synced))); showToast(`Synced ${synced} order(s)!`, 'success'); updateOfflineBadge(); }
 };
 
 function updateOfflineBadge() {
   const pending = JSON.parse(localStorage.getItem('offline_orders') || '[]');
-  const el = document.getElementById('statOffline');
-  if (el) el.textContent = pending.length;
+  const el = document.getElementById('statOffline'); if (el) el.textContent = pending.length;
 }
 
 function showReceiptFromData(order, orderId) {
@@ -482,30 +477,29 @@ function showReceiptFromData(order, orderId) {
 
 function buildReceiptHTML(order, orderId) {
   const now = new Date();
-  const itemRows = order.order_items.map(i =>
-    `<tr><td>${i.name}</td><td style="text-align:center">${i.quantity}</td><td style="text-align:right">₱${(i.price * i.quantity).toFixed(2)}</td></tr>`
-  ).join('');
-  const sub = order.order_items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const items = order.items || cart.map(i => ({ name: i.name, price: i.price, quantity: i.quantity }));
+  const sub = items.reduce((s, i) => s + i.price * i.quantity, 0);
   return `<div style="font-family:monospace;font-size:13px;color:#1a1008;padding:8px;">
     <div style="text-align:center;margin-bottom:12px;">
       <div style="font-size:17px;font-weight:bold;">${settings.name}</div>
       ${settings.address ? `<div style="font-size:11px;color:#666;">${settings.address}</div>` : ''}
       ${settings.contact ? `<div style="font-size:11px;color:#666;">${settings.contact}</div>` : ''}
-      <div style="font-size:11px;color:#666;margin-top:4px;">${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-      <div style="font-size:11px;color:#666;">Cashier: ${order.cashier} | Queue #${order.queue_number}</div>
-      ${orderId ? `<div style="font-size:11px;color:#666;">Order ID: ${orderId}</div>` : '<div style="font-size:11px;color:#e66;">⚠ Offline Order</div>'}
+      <div style="font-size:11px;color:#666;">${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+      <div style="font-size:11px;color:#666;">Staff: ${currentUser?.Name || '—'} | Order #${order.orderNum || orderId || '—'}</div>
+      <div style="font-size:11px;color:#666;">Type: ${order.OrderType}</div>
+      ${orderId ? '' : '<div style="font-size:11px;color:#e66;">⚠ Offline Order</div>'}
     </div>
     <hr style="border:1px dashed #ccc;margin:8px 0;">
     <table style="width:100%;border-collapse:collapse;">
       <thead><tr style="font-size:11px;color:#999;"><th style="text-align:left">Item</th><th style="text-align:center">Qty</th><th style="text-align:right">Amount</th></tr></thead>
-      <tbody>${itemRows}</tbody>
+      <tbody>${items.map(i => `<tr><td>${i.name}</td><td style="text-align:center">${i.quantity}</td><td style="text-align:right">₱${(i.price * i.quantity).toFixed(2)}</td></tr>`).join('')}</tbody>
     </table>
     <hr style="border:1px dashed #ccc;margin:8px 0;">
     <div style="display:flex;justify-content:space-between;"><span>Subtotal</span><span>₱${sub.toFixed(2)}</span></div>
-    ${order.discount_amount > 0 ? `<div style="display:flex;justify-content:space-between;color:green;"><span>Discount (${order.discount_code})</span><span>− ₱${order.discount_amount.toFixed(2)}</span></div>` : ''}
-    <div style="display:flex;justify-content:space-between;font-weight:bold;font-size:15px;margin-top:6px;"><span>TOTAL</span><span>₱${order.total.toFixed(2)}</span></div>
-    <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:12px;color:#555;"><span>Payment</span><span>${order.payment_method}</span></div>
-    ${order.notes ? `<div style="margin-top:6px;font-size:11px;color:#555;"><em>Notes: ${order.notes}</em></div>` : ''}
+    ${(order.DiscountAmount || 0) > 0 ? `<div style="display:flex;justify-content:space-between;color:green;"><span>Discount (${order.DiscountCode})</span><span>− ₱${parseFloat(order.DiscountAmount).toFixed(2)}</span></div>` : ''}
+    <div style="display:flex;justify-content:space-between;font-weight:bold;font-size:15px;margin-top:6px;"><span>TOTAL</span><span>₱${parseFloat(order.TotalAmount).toFixed(2)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:#555;margin-top:4px;"><span>Payment</span><span>${order.PaymentMethod}</span></div>
+    ${order.Notes ? `<div style="margin-top:6px;font-size:11px;color:#555;"><em>Notes: ${order.Notes}</em></div>` : ''}
     <hr style="border:1px dashed #ccc;margin:8px 0;">
     <div style="text-align:center;font-size:11px;color:#999;">${settings.footer}</div>
   </div>`;
@@ -522,29 +516,37 @@ window.printReceipt = function () {
 window.saveProduct = async function () {
   const name = document.getElementById('pName').value.trim();
   const price = parseFloat(document.getElementById('pPrice').value);
-  const cat = document.getElementById('pCat').value.trim();
+  const catId = parseInt(document.getElementById('pCat').value);
+  const stock = parseInt(document.getElementById('pStock').value) || 0;
+  const available = document.getElementById('pAvailable').checked;
   const editId = document.getElementById('editId').value;
-  if (!name || isNaN(price)) { showToast('Fill in name and price', 'error'); return; }
-  if (editId) await sb.from('products').update({ name, price, category: cat }).eq('id', editId);
-  else await sb.from('products').insert([{ name, price, category: cat }]);
+  if (!name || isNaN(price) || !catId) { showToast('Fill in name, price and category', 'error'); return; }
+  if (editId) {
+    await sb.from('Product').update({ Name: name, BasePrice: price, CategoryID: catId, StockQuantity: stock, IsAvailable: available }).eq('ProductID', editId);
+    await sb.from('Inventory').upsert({ ProductID: parseInt(editId), QuantityAvailable: stock, LastUpdated: new Date().toISOString() }, { onConflict: 'ProductID' });
+  } else {
+    const { data: prod } = await sb.from('Product').insert([{ Name: name, BasePrice: price, CategoryID: catId, StockQuantity: stock, IsAvailable: available }]).select().single();
+    if (prod) await sb.from('Inventory').insert([{ ProductID: prod.ProductID, QuantityAvailable: stock, LastUpdated: new Date().toISOString() }]);
+  }
   showToast('Item saved!', 'success'); cancelEdit();
   await loadProducts(); renderCatFilters(); renderProductGrid(); renderProductsTable();
 };
 
 window.editProduct = function (id) {
-  const p = allProducts.find(x => x.id === id); if (!p) return;
-  document.getElementById('editId').value = p.id;
-  document.getElementById('pName').value = p.name;
-  document.getElementById('pPrice').value = p.price;
-  document.getElementById('pCat').value = p.category || '';
+  const p = allProducts.find(x => x.ProductID === id); if (!p) return;
+  document.getElementById('editId').value = p.ProductID;
+  document.getElementById('pName').value = p.Name;
+  document.getElementById('pPrice').value = p.BasePrice;
+  document.getElementById('pCat').value = p.CategoryID;
+  document.getElementById('pStock').value = p.Inventory?.QuantityAvailable ?? p.StockQuantity;
+  document.getElementById('pAvailable').checked = p.IsAvailable;
   document.getElementById('formTitle').textContent = 'Edit Item';
 };
 
 window.deleteProduct = async function (id) {
   if (!confirm('Delete this item?')) return;
-  await sb.from('products').delete().eq('id', id);
-  showToast('Deleted', 'success');
-  await loadProducts(); renderCatFilters(); renderProductGrid(); renderProductsTable();
+  await sb.from('Product').delete().eq('ProductID', id);
+  showToast('Deleted', 'success'); await loadProducts(); renderCatFilters(); renderProductGrid(); renderProductsTable();
 };
 
 window.cancelEdit = function () {
@@ -552,26 +554,36 @@ window.cancelEdit = function () {
   document.getElementById('pName').value = '';
   document.getElementById('pPrice').value = '';
   document.getElementById('pCat').value = '';
+  document.getElementById('pStock').value = '';
+  document.getElementById('pAvailable').checked = true;
   document.getElementById('formTitle').textContent = 'Add New Item';
 };
 
 function renderProductsTable() {
   const tbody = document.getElementById('productsTableBody');
-  if (!allProducts.length) { tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-muted);text-align:center;padding:24px">No items yet.</td></tr>'; return; }
-  tbody.innerHTML = allProducts.map(p => `<tr>
-    <td>${p.name}</td><td>₱${parseFloat(p.price).toFixed(2)}</td>
-    <td><span class="badge">${p.category || '—'}</span></td>
-    <td><button class="btn-icon" onclick="editProduct('${p.id}')">✏️</button><button class="btn-icon" onclick="deleteProduct('${p.id}')">🗑</button></td>
-  </tr>`).join('');
+  if (!allProducts.length) { tbody.innerHTML = '<tr><td colspan="6" style="color:var(--text-muted);text-align:center;padding:24px">No items yet.</td></tr>'; return; }
+  tbody.innerHTML = allProducts.map(p => {
+    const stock = p.Inventory?.QuantityAvailable ?? p.StockQuantity;
+    const statusColor = !p.IsAvailable ? 'var(--red)' : stock <= 5 ? '#f59e0b' : 'var(--green)';
+    const statusText = !p.IsAvailable ? 'Unavailable' : stock <= 5 ? 'Low Stock' : 'Available';
+    return `<tr>
+      <td>${p.Name}</td>
+      <td><span class="badge">${p.Category?.CategoryName || '—'}</span></td>
+      <td>₱${parseFloat(p.BasePrice).toFixed(2)}</td>
+      <td>${stock}</td>
+      <td><span style="color:${statusColor};font-size:12px;font-weight:600;">${statusText}</span></td>
+      <td><button class="btn-icon" onclick="editProduct(${p.ProductID})">✏️</button><button class="btn-icon" onclick="deleteProduct(${p.ProductID})">🗑</button></td>
+    </tr>`;
+  }).join('');
 }
 
 window.loadReports = async function () {
-  let query = sb.from('orders').select('*').order('created_at', { ascending: false });
+  let query = sb.from('Order').select('*, Employee(Name), OrderDetails(Quantity, Price, Subtotal, Product(Name))').order('OrderDateTime', { ascending: false });
   const dateVal = document.getElementById('filterDate').value;
-  if (dateVal) query = query.gte('created_at', dateVal + 'T00:00:00').lte('created_at', dateVal + 'T23:59:59');
+  if (dateVal) query = query.gte('OrderDateTime', dateVal + 'T00:00:00').lte('OrderDateTime', dateVal + 'T23:59:59');
   const { data: orders, error } = await query;
   if (error) { showToast('Error loading orders', 'error'); return; }
-  const total = (orders || []).reduce((s, o) => s + (o.total || 0), 0);
+  const total = (orders || []).reduce((s, o) => s + parseFloat(o.TotalAmount || 0), 0);
   const avg = orders?.length ? total / orders.length : 0;
   document.getElementById('statOrders').textContent = orders?.length || 0;
   document.getElementById('statRevenue').textContent = '₱' + total.toFixed(2);
@@ -579,26 +591,28 @@ window.loadReports = async function () {
   updateOfflineBadge();
   renderBestSellers(orders || []);
   const tbody = document.getElementById('ordersBody');
-  if (!orders?.length) { tbody.innerHTML = '<tr><td colspan="8" style="color:var(--text-muted);text-align:center;padding:30px">No orders found.</td></tr>'; return; }
+  if (!orders?.length) { tbody.innerHTML = '<tr><td colspan="9" style="color:var(--text-muted);text-align:center;padding:30px">No orders found.</td></tr>'; return; }
   tbody.innerHTML = orders.map((o, idx) => {
-    const items = (o.order_items || []).map(i => `${i.name} ×${i.quantity}`).join(', ');
-    const d = new Date(o.created_at);
+    const items = (o.OrderDetails || []).map(d => `${d.Product?.Name} ×${d.Quantity}`).join(', ');
+    const d = new Date(o.OrderDateTime);
+    const statusColor = o.Status === 'Completed' ? 'var(--green)' : o.Status === 'Cancelled' ? 'var(--red)' : 'var(--amber)';
     return `<tr>
       <td>${orders.length - idx}</td>
-      <td><span class="queue-badge">#${o.queue_number || '—'}</span></td>
       <td>${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-      <td>${o.cashier || '—'}</td>
-      <td><span class="badge">${o.payment_method || 'Cash'}</span></td>
-      <td class="order-items-list">${items}</td>
-      <td class="order-items-list">${o.notes || '—'}</td>
-      <td class="order-total">₱${parseFloat(o.total).toFixed(2)}</td>
+      <td>${o.Employee?.Name || '—'}</td>
+      <td><span class="badge">${o.OrderType}</span></td>
+      <td><span class="badge">${o.PaymentMethod}</span></td>
+      <td class="order-items-list">${items || '—'}</td>
+      <td class="order-items-list">${o.Notes || '—'}</td>
+      <td><span style="color:${statusColor};font-size:12px;font-weight:600;">${o.Status}</span></td>
+      <td class="order-total">₱${parseFloat(o.TotalAmount).toFixed(2)}</td>
     </tr>`;
   }).join('');
 };
 
 function renderBestSellers(orders) {
   const counts = {};
-  orders.forEach(o => (o.order_items || []).forEach(i => { counts[i.name] = (counts[i.name] || 0) + i.quantity; }));
+  orders.forEach(o => (o.OrderDetails || []).forEach(d => { const n = d.Product?.Name || '?'; counts[n] = (counts[n] || 0) + d.Quantity; }));
   const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
   const max = sorted[0]?.[1] || 1;
   const container = document.getElementById('bestSellersChart');
@@ -614,41 +628,66 @@ function renderBestSellers(orders) {
 window.clearDateFilter = function () { document.getElementById('filterDate').value = ''; loadReports(); };
 
 window.exportToExcel = async function () {
-  const { data: orders } = await sb.from('orders').select('*').order('created_at', { ascending: false });
+  const { data: orders } = await sb.from('Order').select('*, Employee(Name), OrderDetails(Quantity, Price, Subtotal, Product(Name))').order('OrderDateTime', { ascending: false });
   if (!orders?.length) { showToast('No orders to export', 'error'); return; }
-  const rows = [['#', 'Queue', 'Date', 'Time', 'Cashier', 'Payment', 'Items', 'Notes', 'Discount Code', 'Discount Amount', 'Total']];
+  const rows = [['#', 'Date', 'Time', 'Staff', 'Type', 'Payment', 'Items', 'Notes', 'Discount', 'Status', 'Total']];
   orders.forEach((o, idx) => {
-    const d = new Date(o.created_at);
-    const items = (o.order_items || []).map(i => `${i.name} x${i.quantity}`).join(' | ');
-    rows.push([idx + 1, o.queue_number || '', d.toLocaleDateString(), d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), o.cashier || '', o.payment_method || 'Cash', items, o.notes || '', o.discount_code || '', o.discount_amount || 0, o.total]);
+    const d = new Date(o.OrderDateTime);
+    const items = (o.OrderDetails || []).map(i => `${i.Product?.Name} x${i.Quantity}`).join(' | ');
+    rows.push([idx + 1, d.toLocaleDateString(), d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), o.Employee?.Name || '', o.OrderType, o.PaymentMethod, items, o.Notes || '', o.DiscountCode || '', o.Status, o.TotalAmount]);
   });
   const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
   a.download = `orders_${new Date().toISOString().split('T')[0]}.csv`;
-  a.click();
-  showToast('Exported!', 'success');
+  a.click(); showToast('Exported!', 'success');
 };
 
-window.openMobileCart = function () {
-  document.getElementById('cartDrawer').classList.add('open');
-  document.getElementById('cartDrawerOverlay').classList.add('open');
+window.loadInventory = async function () {
+  await loadProducts();
+  const low = allProducts.filter(p => (p.Inventory?.QuantityAvailable ?? p.StockQuantity) <= 5 && p.IsAvailable).length;
+  const out = allProducts.filter(p => (p.Inventory?.QuantityAvailable ?? p.StockQuantity) === 0).length;
+  document.getElementById('invTotal').textContent = allProducts.length;
+  document.getElementById('invLow').textContent = low;
+  document.getElementById('invOut').textContent = out;
+  const tbody = document.getElementById('inventoryBody');
+  if (!allProducts.length) { tbody.innerHTML = '<tr><td colspan="6" style="color:var(--text-muted);text-align:center;padding:24px">No products.</td></tr>'; return; }
+  tbody.innerHTML = allProducts.map(p => {
+    const stock = p.Inventory?.QuantityAvailable ?? p.StockQuantity;
+    const updated = p.Inventory?.LastUpdated ? new Date(p.Inventory.LastUpdated).toLocaleDateString() : '—';
+    const statusColor = stock === 0 ? 'var(--red)' : stock <= 5 ? '#f59e0b' : 'var(--green)';
+    const statusText = stock === 0 ? '🔴 Out of Stock' : stock <= 5 ? '🟡 Low Stock' : '🟢 OK';
+    return `<tr>
+      <td>${p.Name}</td>
+      <td><span class="badge">${p.Category?.CategoryName || '—'}</span></td>
+      <td><strong>${stock}</strong></td>
+      <td><span style="color:${statusColor};font-size:12px;font-weight:600;">${statusText}</span></td>
+      <td>${updated}</td>
+      <td><button class="btn-icon" onclick="openStockModal(${p.ProductID},${stock})">✏️ Restock</button></td>
+    </tr>`;
+  }).join('');
 };
 
-window.closeMobileCart = function () {
-  document.getElementById('cartDrawer').classList.remove('open');
-  document.getElementById('cartDrawerOverlay').classList.remove('open');
+window.openStockModal = function (id, current) {
+  document.getElementById('stockProductId').value = id;
+  document.getElementById('stockQty').value = current;
+  document.getElementById('stockModal').classList.add('open');
+};
+window.closeStockModal = function () { document.getElementById('stockModal').classList.remove('open'); };
+window.saveStock = async function () {
+  const id = parseInt(document.getElementById('stockProductId').value);
+  const qty = parseInt(document.getElementById('stockQty').value);
+  if (isNaN(qty) || qty < 0) { showToast('Enter a valid quantity', 'error'); return; }
+  await sb.from('Inventory').upsert({ ProductID: id, QuantityAvailable: qty, LastUpdated: new Date().toISOString() }, { onConflict: 'ProductID' });
+  await sb.from('Product').update({ StockQuantity: qty }).eq('ProductID', id);
+  closeStockModal(); showToast('Stock updated!', 'success');
+  await loadInventory();
 };
 
-window.showMoreMenu = function () {
-  document.getElementById('moreMenu').classList.add('open');
-  document.getElementById('moreMenuOverlay').classList.add('open');
-};
-
-window.closeMoreMenu = function () {
-  document.getElementById('moreMenu').classList.remove('open');
-  document.getElementById('moreMenuOverlay').classList.remove('open');
-};
+window.openMobileCart = function () { document.getElementById('cartDrawer').classList.add('open'); document.getElementById('cartDrawerOverlay').classList.add('open'); };
+window.closeMobileCart = function () { document.getElementById('cartDrawer').classList.remove('open'); document.getElementById('cartDrawerOverlay').classList.remove('open'); };
+window.showMoreMenu = function () { document.getElementById('moreMenu').classList.add('open'); document.getElementById('moreMenuOverlay').classList.add('open'); };
+window.closeMoreMenu = function () { document.getElementById('moreMenu').classList.remove('open'); document.getElementById('moreMenuOverlay').classList.remove('open'); };
 
 window.showPage = function (name, btn) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -662,6 +701,7 @@ window.showPage = function (name, btn) {
   if (name === 'promos') renderPromosTable();
   if (name === 'staff') loadStaff().then(renderStaffTable);
   if (name === 'settings') loadSettings();
+  if (name === 'inventory') loadInventory();
 };
 
 let toastTimer;
