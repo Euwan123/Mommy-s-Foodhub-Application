@@ -2,17 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="FoodHub POS">
 <meta name="theme-color" content="#f59e0b" id="themeMetaColor">
 <title>Mommy's FoodHub — POS</title>
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="CSS/style.css">
+<link rel="stylesheet" href="CSS/main.css">
+<link rel="stylesheet" href="CSS/cashier.css">
 </head>
 <body>
 
@@ -21,8 +21,8 @@
 <div id="loginScreen">
   <div class="login-box">
     <div class="logo">🍛 Mommy's FoodHub</div>
-    <div class="sub">Cashier System — Staff Login</div>
-    <input type="text" id="loginUser" placeholder="Username" autocomplete="off" autocomplete="username">
+    <div class="sub">Staff Login</div>
+    <input type="text" id="loginUser" placeholder="Username" autocomplete="username">
     <input type="password" id="loginPass" placeholder="Password" autocomplete="current-password">
     <button class="btn-login" onclick="doLogin()">Sign In</button>
     <div id="loginError"></div>
@@ -34,22 +34,21 @@
     <div class="welcome-emoji">🍛</div>
     <div class="welcome-name" id="welcomeName"></div>
     <div class="welcome-role" id="welcomeRole"></div>
-    <div class="welcome-msg">Welcome back! Have a great shift.</div>
+    <div class="welcome-msg">Welcome back! Have a great shift. 🙌</div>
   </div>
 </div>
 
 <div id="app">
   <div class="topbar">
-    <div class="brand">🍛 Mommy's FoodHub</div>
-    <nav id="topNav">
-      <button class="nav-btn active" onclick="showPage('cashier',this)" data-page="cashier">🧾 Cashier</button>
-      <button class="nav-btn" onclick="showPage('products',this)" data-page="products">🍽 Menu</button>
-      <button class="nav-btn" onclick="showPage('reports',this)" data-page="reports">📊 Reports</button>
-      <button class="nav-btn admin-only" onclick="showPage('inventory',this)" data-page="inventory">📦 Inventory</button>
-      <button class="nav-btn admin-only" onclick="showPage('promos',this)" data-page="promos">🏷 Promos</button>
-      <button class="nav-btn admin-only" onclick="showPage('staff',this)" data-page="staff">👥 Staff</button>
-      <button class="nav-btn admin-only" onclick="showPage('settings',this)" data-page="settings">⚙️ Settings</button>
-    </nav>
+    <div class="topbar-left">
+      <div class="brand">🍛 FoodHub</div>
+      <div class="shift-badge" id="shiftBadge">⏱ Not checked in</div>
+    </div>
+    <div class="topbar-center">
+      <button class="nav-btn active" onclick="showTab('cashier',this)">🧾 Cashier</button>
+      <button class="nav-btn" onclick="showTab('kitchen',this)">🍳 Kitchen</button>
+      <button class="nav-btn admin-only" onclick="location.href='admin.html'">⚙️ Admin Panel</button>
+    </div>
     <div class="topbar-right">
       <div class="user-chip" onclick="openAccountModal()">
         <div class="user-avatar" id="userAvatar">—</div>
@@ -62,28 +61,30 @@
     </div>
   </div>
 
-  <div class="page active" id="page-cashier">
+  <div class="tab active" id="tab-cashier">
     <div class="cashier-layout">
       <div class="menu-section">
-        <div class="section-title">Menu</div>
+        <div class="section-title">🍽 Menu</div>
         <div class="menu-controls">
-          <input class="menu-search" id="menuSearch" placeholder="Search menu..." oninput="filterProducts()">
+          <input class="menu-search" id="menuSearch" placeholder="Search dishes..." oninput="filterProducts()">
           <div id="catFilters"></div>
         </div>
         <div class="product-grid" id="productGrid"></div>
       </div>
+
       <div class="cart-panel" id="desktopCart">
-        <div class="cart-header">🛒 Order
+        <div class="cart-header">
+          🛒 Current Order
           <div class="order-type-row">
             <button class="otype-btn active" onclick="setOrderType('Dine-in',this)">🍽 Dine-in</button>
             <button class="otype-btn" onclick="setOrderType('Takeout',this)">🥡 Takeout</button>
             <button class="otype-btn" onclick="setOrderType('Delivery',this)">🛵 Delivery</button>
           </div>
         </div>
-        <div class="cart-items" id="cartItems"><div class="cart-empty">No items yet.<br>Tap a product to add.</div></div>
+        <div class="cart-items" id="cartItems"><div class="cart-empty">No items yet.<br>Tap a dish to add.</div></div>
         <div class="cart-footer">
           <div class="form-group">
-            <label>Payment Method</label>
+            <label>Payment</label>
             <div class="payment-btns">
               <button class="pay-btn active" onclick="setPayment('Cash',this)">💵 Cash</button>
               <button class="pay-btn" onclick="setPayment('GCash',this)">📱 GCash</button>
@@ -91,23 +92,23 @@
           </div>
           <div class="form-group">
             <label>Order Notes</label>
-            <input type="text" class="discount-input" id="orderNotes" placeholder="e.g. no onions, extra rice..." style="text-transform:none;width:100%;">
+            <input type="text" class="field-input" id="orderNotes" placeholder="e.g. no onions…" style="text-transform:none;">
           </div>
           <div class="discount-row">
-            <input class="discount-input" id="promoInput" placeholder="Promo code...">
+            <input class="field-input" id="promoInput" placeholder="Promo code…">
             <button class="btn-apply" onclick="applyPromo()">Apply</button>
           </div>
-          <div id="promoMsg"></div>
+          <div id="promoMsg" style="font-size:12px;min-height:16px;margin-bottom:6px;"></div>
           <div class="cart-total-row">
             <div>
               <div class="cart-total-label">Total</div>
               <div id="discountLine" style="display:none;font-size:12px;color:var(--green);"></div>
             </div>
-            <div class="cart-total-amt"><span id="currencySymbol">₱</span><span id="cartTotal">0.00</span></div>
+            <div class="cart-total-amt"><span class="curr-sym">₱</span><span id="cartTotal">0.00</span></div>
           </div>
           <div class="change-calc" id="changeCalc" style="display:none;">
             <div class="change-row">
-              <label>Cash Received (<span class="curr-label">₱</span>)</label>
+              <label>Cash Received (<span class="curr-sym-inline">₱</span>)</label>
               <input type="number" id="cashReceived" placeholder="0.00" oninput="calcChange()" min="0">
             </div>
             <div class="change-row">
@@ -115,209 +116,26 @@
               <div class="change-amt" id="changeAmt">0.00</div>
             </div>
           </div>
-          <button class="btn-checkout" onclick="openCheckoutModal('desktop')">✔ Checkout</button>
+          <button class="btn-checkout" onclick="openCheckoutModal('desktop')">✔ Place Order</button>
           <button class="btn-clear" onclick="clearCart()">Clear Order</button>
         </div>
       </div>
     </div>
   </div>
 
-  <div class="page" id="page-products">
-    <div class="section-title">Menu Management</div>
-    <div class="mgmt-layout">
-      <div class="form-card">
-        <div class="form-title" id="formTitle">Add New Item</div>
-        <input type="hidden" id="editId">
-        <div class="form-group"><label>Item Name</label><input type="text" id="pName" placeholder="e.g. Adobo"></div>
-        <div class="form-group"><label>Base Price</label><input type="number" id="pPrice" placeholder="0.00" min="0" step="0.01"></div>
-        <div class="form-group"><label>Category</label>
-          <select id="pCat"><option value="">Select category...</option></select>
-        </div>
-        <div class="form-group"><label>Stock Quantity</label><input type="number" id="pStock" placeholder="0" min="0"></div>
-        <div class="form-group" style="display:flex;align-items:center;gap:10px;">
-          <input type="checkbox" id="pAvailable" checked style="width:auto;">
-          <label for="pAvailable" style="text-transform:none;font-size:13px;">Available for ordering</label>
-        </div>
-        <button class="btn-add" onclick="saveProduct()">Save Item</button>
-        <button class="btn-clear" style="margin-top:8px;" onclick="cancelEdit()">Cancel</button>
-      </div>
-      <div class="form-card"><div class="products-table-wrap">
-        <table><thead><tr><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th></th></tr></thead>
-        <tbody id="productsTableBody"></tbody></table>
-      </div></div>
+  <div class="tab" id="tab-kitchen">
+    <div class="section-title">🍳 Kitchen Board</div>
+    <div class="kitchen-controls">
+      <button class="kfilter-btn active" onclick="filterKitchen('all',this)">All</button>
+      <button class="kfilter-btn" onclick="filterKitchen('Pending',this)">🟡 Pending</button>
+      <button class="kfilter-btn" onclick="filterKitchen('Accepted',this)">🔵 Accepted</button>
+      <button class="kfilter-btn" onclick="filterKitchen('Cooking',this)">🟠 Cooking</button>
+      <button class="kfilter-btn" onclick="filterKitchen('Ready',this)">🟢 Ready</button>
+      <button class="kfilter-btn" onclick="filterKitchen('Completed',this)">✅ Done</button>
+      <button class="kfilter-btn" onclick="filterKitchen('Cancelled',this)">❌ Cancelled</button>
+      <button class="kfilter-btn" onclick="loadKitchen()">🔄 Refresh</button>
     </div>
-  </div>
-
-  <div class="page" id="page-reports">
-    <div class="section-title">Sales Reports</div>
-    <div class="report-controls">
-      <input type="date" id="filterDate" class="menu-search" style="max-width:180px;" onchange="loadReports()">
-      <button class="cat-btn active" onclick="clearDateFilter()">All Time</button>
-      <button class="cat-btn" onclick="exportToExcel()">📥 Export</button>
-      <button class="cat-btn" onclick="syncOfflineOrders()">🔄 Sync</button>
-    </div>
-    <div class="stats-row">
-      <div class="stat-card"><div class="stat-label">Total Orders</div><div class="stat-val" id="statOrders">—</div></div>
-      <div class="stat-card"><div class="stat-label">Total Revenue</div><div class="stat-val green" id="statRevenue">—</div></div>
-      <div class="stat-card"><div class="stat-label">Avg Order</div><div class="stat-val" id="statAvg">—</div></div>
-      <div class="stat-card"><div class="stat-label">Pending Sync</div><div class="stat-val" id="statOffline">0</div></div>
-    </div>
-    <div class="form-card" style="margin-bottom:20px;">
-      <div class="form-title">🏆 Best Selling Items</div>
-      <div id="bestSellersChart" class="best-sellers"></div>
-    </div>
-    <div class="orders-table-wrap">
-      <table>
-        <thead><tr><th>#</th><th>Date & Time</th><th>Cashier</th><th>Type</th><th>Payment</th><th>Items</th><th>Notes</th><th>Status</th><th>Total</th></tr></thead>
-        <tbody id="ordersBody"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="page" id="page-inventory">
-    <div class="section-title">Inventory</div>
-    <div class="stats-row" style="margin-bottom:20px;">
-      <div class="stat-card"><div class="stat-label">Total Products</div><div class="stat-val" id="invTotal">—</div></div>
-      <div class="stat-card"><div class="stat-label">Low Stock</div><div class="stat-val" style="color:var(--red);" id="invLow">—</div></div>
-      <div class="stat-card"><div class="stat-label">Out of Stock</div><div class="stat-val" style="color:var(--red);" id="invOut">—</div></div>
-    </div>
-    <div class="orders-table-wrap">
-      <table>
-        <thead><tr><th>Product</th><th>Category</th><th>Stock</th><th>Status</th><th>Last Updated</th><th></th></tr></thead>
-        <tbody id="inventoryBody"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="page" id="page-promos">
-    <div class="section-title">Promo Codes</div>
-    <div class="mgmt-layout">
-      <div class="form-card">
-        <div class="form-title" id="promoFormTitle">Add Promo Code</div>
-        <input type="hidden" id="promoEditId">
-        <div class="form-group"><label>Code</label><input type="text" id="promoCode" placeholder="e.g. SAVE20"></div>
-        <div class="form-group"><label>Discount Type</label>
-          <select id="promoType"><option value="percent">Percent Off (%)</option><option value="fixed">Fixed Amount</option></select>
-        </div>
-        <div class="form-group"><label>Value</label><input type="number" id="promoValue" placeholder="e.g. 10" min="0" step="0.01"></div>
-        <button class="btn-add" onclick="savePromo()">Save Promo</button>
-        <button class="btn-clear" style="margin-top:8px;" onclick="cancelPromoEdit()">Cancel</button>
-      </div>
-      <div class="form-card"><div class="products-table-wrap">
-        <table><thead><tr><th>Code</th><th>Type</th><th>Value</th><th></th></tr></thead>
-        <tbody id="promosTableBody"></tbody></table>
-      </div></div>
-    </div>
-  </div>
-
-  <div class="page" id="page-staff">
-    <div class="section-title">Staff Management</div>
-    <div class="mgmt-layout">
-      <div class="form-card">
-        <div class="form-title" id="staffFormTitle">Add Staff</div>
-        <input type="hidden" id="staffEditId">
-        <div class="form-group"><label>Full Name</label><input type="text" id="staffName" placeholder="e.g. Juan Dela Cruz"></div>
-        <div class="form-group"><label>Username</label><input type="text" id="staffUser" placeholder="e.g. juan" autocomplete="off"></div>
-        <div class="form-group"><label>Password</label><input type="text" id="staffPass" placeholder="password" autocomplete="new-password"></div>
-        <div class="form-group"><label>Position</label><input type="text" id="staffPosition" placeholder="e.g. Cashier"></div>
-        <div class="form-group"><label>Access Level</label>
-          <select id="staffRole"><option value="Staff">Staff</option><option value="Admin">Admin</option><option value="Manager">Manager</option></select>
-        </div>
-        <div class="form-group"><label>Date of Birth</label><input type="date" id="staffDob"></div>
-        <button class="btn-add" onclick="saveStaff()">Save Staff</button>
-        <button class="btn-clear" style="margin-top:8px;" onclick="cancelStaffEdit()">Cancel</button>
-      </div>
-      <div class="form-card"><div class="products-table-wrap">
-        <table><thead><tr><th>Name</th><th>Username</th><th>Position</th><th>Access</th><th></th></tr></thead>
-        <tbody id="staffTableBody"></tbody></table>
-      </div></div>
-    </div>
-  </div>
-
-  <div class="page" id="page-settings">
-    <div class="section-title">Settings</div>
-    <div class="settings-grid">
-
-      <div class="form-card">
-        <div class="form-title">🧾 Receipt Info</div>
-        <div class="form-group"><label>Restaurant Name</label><input type="text" id="settingName" placeholder="Mommy's FoodHub"></div>
-        <div class="form-group"><label>Address</label><input type="text" id="settingAddress" placeholder="e.g. 123 Main St, Davao City"></div>
-        <div class="form-group"><label>Contact Number</label><input type="text" id="settingContact" placeholder="e.g. 09XX-XXX-XXXX"></div>
-        <div class="form-group"><label>Receipt Footer</label><input type="text" id="settingFooter" placeholder="Thank you for dining with us!"></div>
-        <button class="btn-add" onclick="saveSettings()">Save Receipt Info</button>
-      </div>
-
-      <div class="form-card">
-        <div class="form-title">🎨 Theme</div>
-        <div class="form-group">
-          <label>Accent Color</label>
-          <div class="theme-swatches" id="themeSwatches">
-            <button class="swatch active" data-color="#f59e0b" style="background:#f59e0b;" title="Amber"></button>
-            <button class="swatch" data-color="#ef4444" style="background:#ef4444;" title="Red"></button>
-            <button class="swatch" data-color="#10b981" style="background:#10b981;" title="Green"></button>
-            <button class="swatch" data-color="#3b82f6" style="background:#3b82f6;" title="Blue"></button>
-            <button class="swatch" data-color="#8b5cf6" style="background:#8b5cf6;" title="Purple"></button>
-            <button class="swatch" data-color="#ec4899" style="background:#ec4899;" title="Pink"></button>
-            <button class="swatch" data-color="#f97316" style="background:#f97316;" title="Orange"></button>
-            <button class="swatch custom-swatch" title="Custom">
-              <input type="color" id="customColor" onchange="applyCustomColor(this.value)" style="opacity:0;position:absolute;inset:0;width:100%;height:100%;cursor:pointer;">
-              🎨
-            </button>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Background</label>
-          <div class="theme-swatches">
-            <button class="bg-swatch active" data-bg="#1a1008" style="background:#1a1008;border:2px solid #555;" title="Dark Brown"></button>
-            <button class="bg-swatch" data-bg="#0f172a" style="background:#0f172a;" title="Dark Blue"></button>
-            <button class="bg-swatch" data-bg="#111827" style="background:#111827;" title="Dark Gray"></button>
-            <button class="bg-swatch" data-bg="#1a1a2e" style="background:#1a1a2e;" title="Midnight"></button>
-            <button class="bg-swatch" data-bg="#0d0d0d" style="background:#0d0d0d;" title="Black"></button>
-          </div>
-        </div>
-        <button class="btn-clear" style="margin-top:4px;" onclick="resetTheme()">Reset to Default</button>
-      </div>
-
-      <div class="form-card">
-        <div class="form-title">💰 Currency</div>
-        <div class="form-group">
-          <label>Currency Symbol</label>
-          <div class="currency-btns" id="currencyBtns">
-            <button class="curr-btn active" data-symbol="₱" data-label="PHP">₱ PHP</button>
-            <button class="curr-btn" data-symbol="$" data-label="USD">$ USD</button>
-            <button class="curr-btn" data-symbol="€" data-label="EUR">€ EUR</button>
-            <button class="curr-btn" data-symbol="£" data-label="GBP">£ GBP</button>
-            <button class="curr-btn" data-symbol="¥" data-label="JPY">¥ JPY</button>
-          </div>
-        </div>
-        <div class="form-group" style="margin-top:8px;">
-          <label>Custom Symbol</label>
-          <input type="text" id="customCurrency" placeholder="e.g. ₩" maxlength="4" style="max-width:120px;">
-          <button class="btn-apply" style="margin-top:6px;" onclick="applyCustomCurrency()">Apply</button>
-        </div>
-      </div>
-
-      <div class="form-card">
-        <div class="form-title">📲 Install App</div>
-        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;line-height:1.6;">Install FoodHub POS on your device for faster access — works like a real app, no app store needed.</p>
-        <button class="btn-add" id="installBtn" onclick="installApp()" style="display:none;">📲 Install on this device</button>
-        <div id="installStatus" style="font-size:13px;color:var(--text-muted);">Already installed or not available on this browser.</div>
-        <div style="margin-top:16px;font-size:12px;color:var(--text-muted);line-height:1.7;">
-          <strong style="color:var(--text);">iPhone / Safari:</strong> Tap Share → Add to Home Screen<br>
-          <strong style="color:var(--text);">Android / Chrome:</strong> Tap ⋮ → Add to Home Screen<br>
-          <strong style="color:var(--text);">PC / Chrome:</strong> Click ⊕ in address bar
-        </div>
-      </div>
-
-      <div class="form-card">
-        <div class="form-title">🔑 Change Password</div>
-        <div class="form-group"><label>Current Password</label><input type="password" id="curPass" autocomplete="current-password"></div>
-        <div class="form-group"><label>New Password</label><input type="password" id="newPass" autocomplete="new-password"></div>
-        <div class="form-group"><label>Confirm New Password</label><input type="password" id="confirmPass" autocomplete="new-password"></div>
-        <button class="btn-add" onclick="changePassword()">Update Password</button>
-      </div>
-
-    </div>
+    <div class="kitchen-grid" id="kitchenGrid"></div>
   </div>
 </div>
 
@@ -325,7 +143,6 @@
   🛒 <span class="fab-count" id="cartFabCount">0</span>
   <span class="fab-total" id="cartFabTotal">₱0.00</span>
 </button>
-
 <div class="cart-drawer-overlay" id="cartDrawerOverlay" onclick="closeMobileCart()"></div>
 <div class="cart-drawer" id="cartDrawer">
   <div class="drawer-handle"></div>
@@ -341,31 +158,31 @@
   <div class="cart-items" id="cartItemsMobile"><div class="cart-empty">No items yet.</div></div>
   <div class="cart-footer">
     <div class="form-group">
-      <label>Payment Method</label>
+      <label>Payment</label>
       <div class="payment-btns">
         <button class="pay-btn-m active" onclick="setPaymentM('Cash',this)">💵 Cash</button>
         <button class="pay-btn-m" onclick="setPaymentM('GCash',this)">📱 GCash</button>
       </div>
     </div>
     <div class="form-group">
-      <label>Order Notes</label>
-      <input type="text" class="discount-input" id="orderNotesM" placeholder="e.g. no onions..." style="text-transform:none;width:100%;">
+      <label>Notes</label>
+      <input type="text" class="field-input" id="orderNotesM" placeholder="e.g. no onions…" style="text-transform:none;">
     </div>
     <div class="discount-row">
-      <input class="discount-input" id="promoInputM" placeholder="Promo code...">
+      <input class="field-input" id="promoInputM" placeholder="Promo code…">
       <button class="btn-apply" onclick="applyPromoM()">Apply</button>
     </div>
-    <div id="promoMsgM"></div>
+    <div id="promoMsgM" style="font-size:12px;min-height:16px;margin-bottom:6px;"></div>
     <div class="cart-total-row">
       <div>
         <div class="cart-total-label">Total</div>
         <div id="discountLineM" style="display:none;font-size:12px;color:var(--green);"></div>
       </div>
-      <div class="cart-total-amt"><span class="curr-sym-m">₱</span><span id="cartTotalM">0.00</span></div>
+      <div class="cart-total-amt"><span class="curr-sym">₱</span><span id="cartTotalM">0.00</span></div>
     </div>
     <div class="change-calc" id="changeCalcM" style="display:none;">
       <div class="change-row">
-        <label>Cash Received (<span class="curr-label">₱</span>)</label>
+        <label>Cash Received (<span class="curr-sym-inline">₱</span>)</label>
         <input type="number" id="cashReceivedM" placeholder="0.00" oninput="calcChangeM()" min="0">
       </div>
       <div class="change-row">
@@ -373,26 +190,26 @@
         <div class="change-amt" id="changeAmtM">0.00</div>
       </div>
     </div>
-    <button class="btn-checkout" onclick="openCheckoutModal('mobile')">✔ Checkout</button>
+    <button class="btn-checkout" onclick="openCheckoutModal('mobile')">✔ Place Order</button>
     <button class="btn-clear" onclick="clearCart()">Clear Order</button>
   </div>
 </div>
 
 <nav class="bottom-nav">
-  <button class="bnav-btn active" onclick="showPage('cashier',this)" data-page="cashier">🧾<span>Cashier</span></button>
-  <button class="bnav-btn" onclick="showPage('products',this)" data-page="products">🍽<span>Menu</span></button>
-  <button class="bnav-btn" onclick="showPage('reports',this)" data-page="reports">📊<span>Reports</span></button>
-  <button class="bnav-btn admin-only" onclick="showPage('inventory',this)" data-page="inventory">📦<span>Stock</span></button>
-  <button class="bnav-btn" onclick="showMoreMenu()">⋯<span>More</span></button>
+  <button class="bnav-btn active" onclick="showTab('cashier',this)">🧾<span>Cashier</span></button>
+  <button class="bnav-btn" onclick="showTab('kitchen',this)">🍳<span>Kitchen</span></button>
+  <button class="bnav-btn admin-only" onclick="location.href='admin.html'">⚙️<span>Admin</span></button>
+  <button class="bnav-btn" onclick="openAccountModal()">👤<span>Account</span></button>
 </nav>
 
-<div class="more-menu-overlay" id="moreMenuOverlay" onclick="closeMoreMenu()"></div>
-<div class="more-menu" id="moreMenu">
-  <button class="admin-only" onclick="showPage('promos',null);closeMoreMenu()">🏷 Promos</button>
-  <button class="admin-only" onclick="showPage('staff',null);closeMoreMenu()">👥 Staff</button>
-  <button class="admin-only" onclick="showPage('settings',null);closeMoreMenu()">⚙️ Settings</button>
-  <button onclick="openAccountModal();closeMoreMenu()">👤 Account</button>
-  <button onclick="doLogout();closeMoreMenu()">🚪 Logout</button>
+<div class="modal-overlay" id="sizeModal">
+  <div class="modal-box" style="max-width:340px;">
+    <div class="modal-title" id="sizeModalTitle">Choose Size / Pack</div>
+    <div class="size-list" id="sizeList"></div>
+    <div class="modal-footer" style="margin-top:12px;">
+      <button class="btn-modal-cancel" onclick="closeSizeModal()">Cancel</button>
+    </div>
+  </div>
 </div>
 
 <div class="modal-overlay" id="accountModal">
@@ -403,11 +220,12 @@
       <div style="font-size:12px;color:var(--text-muted);margin-top:4px;" id="accountMeta"></div>
     </div>
     <div class="account-row"><span>Username</span><strong id="accountUsername"></strong></div>
-    <div class="account-row"><span>Position</span><strong id="accountPosition"></strong></div>
-    <div class="account-row"><span>Access Level</span><strong id="accountAccess"></strong></div>
     <div class="account-row"><span>Employee ID</span><strong id="accountId"></strong></div>
+    <div class="account-row"><span>Access Level</span><strong id="accountAccess"></strong></div>
+    <div class="account-row"><span>Shift Status</span><strong id="accountShift" style="color:var(--green);">—</strong></div>
+    <div id="checkinInfo" style="font-size:12px;color:var(--text-muted);margin-top:8px;text-align:center;min-height:18px;"></div>
     <div class="modal-footer" style="margin-top:20px;flex-direction:column;gap:8px;">
-      <button class="btn-modal-ok" onclick="closeAccountModal();showPage('settings',null)">⚙️ Settings</button>
+      <button class="btn-modal-ok" id="checkinBtn" onclick="toggleCheckin()">⏱ Check In</button>
       <button class="btn-modal-cancel" style="color:var(--red);border-color:var(--red);" onclick="doLogout();closeAccountModal()">🚪 Logout</button>
     </div>
   </div>
@@ -435,18 +253,6 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="stockModal">
-  <div class="modal-box">
-    <div class="modal-title">Update Stock</div>
-    <input type="hidden" id="stockProductId">
-    <div class="form-group" style="margin-top:12px;"><label>New Quantity</label><input type="number" id="stockQty" min="0" placeholder="0"></div>
-    <div class="modal-footer" style="margin-top:16px;">
-      <button class="btn-modal-cancel" onclick="closeStockModal()">Cancel</button>
-      <button class="btn-modal-ok" onclick="saveStock()">Update</button>
-    </div>
-  </div>
-</div>
-
 <div id="toast"></div>
 <div id="printArea" style="display:none;"></div>
 
@@ -457,41 +263,10 @@ window.supabase = createClient(
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vbW9qZXV0bWJtb21laXF5Y2FnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0MTM5OTYsImV4cCI6MjA4Nzk4OTk5Nn0.JUOZsj8EYueyoSbNtWdg-fLOvNMhYFa8RYgVNebdsxc'
 );
 </script>
-<script src="JS/script.js" type="module"></script>
+<script src="JS/cashier.js" type="module"></script>
 <script>
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
-
-let deferredPrompt;
-window.addEventListener('beforeinstallprompt', e => {
-  e.preventDefault();
-  deferredPrompt = e;
-  const btn = document.getElementById('installBtn');
-  const status = document.getElementById('installStatus');
-  if (btn) { btn.style.display = 'block'; }
-  if (status) { status.style.display = 'none'; }
-});
-
-window.installApp = function() {
-  if (!deferredPrompt) return;
-  deferredPrompt.prompt();
-  deferredPrompt.userChoice.then(() => {
-    deferredPrompt = null;
-    const btn = document.getElementById('installBtn');
-    if (btn) btn.style.display = 'none';
-  });
-};
-
-window.addEventListener('appinstalled', () => {
-  const btn = document.getElementById('installBtn');
-  const status = document.getElementById('installStatus');
-  if (btn) btn.style.display = 'none';
-  if (status) { status.style.display = 'block'; status.textContent = '✅ App installed successfully!'; }
-});
-
-window.addEventListener('online', () => {
-  document.getElementById('offlineBanner').classList.remove('show');
-  if (window.syncOfflineOrders) syncOfflineOrders();
-});
+window.addEventListener('online', () => { document.getElementById('offlineBanner').classList.remove('show'); if (window.syncOfflineOrders) syncOfflineOrders(); });
 window.addEventListener('offline', () => document.getElementById('offlineBanner').classList.add('show'));
 if (!navigator.onLine) document.getElementById('offlineBanner').classList.add('show');
 </script>

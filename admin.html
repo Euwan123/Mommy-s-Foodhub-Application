@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<meta name="theme-color" content="#f59e0b" id="themeMetaColor">
+<title>FoodHub — Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="CSS/main.css">
+<link rel="stylesheet" href="CSS/admin.css">
+</head>
+<body>
+
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="logo">🍛 FoodHub Admin</div>
+    <div class="sub">Admin / Manager Login</div>
+    <input type="text" id="loginUser" placeholder="Username" autocomplete="username">
+    <input type="password" id="loginPass" placeholder="Password" autocomplete="current-password">
+    <button class="btn-login" onclick="doLogin()">Sign In</button>
+    <div id="loginError"></div>
+  </div>
+</div>
+
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="brand">🍛 FoodHub Admin</div>
+    </div>
+    <div class="topbar-right">
+      <button class="nav-btn" onclick="location.href='index.html'" style="border:1px solid var(--border);">🧾 Back to POS</button>
+      <div class="user-chip" onclick="openAccountModal()">
+        <div class="user-avatar" id="userAvatar">—</div>
+        <div class="user-info">
+          <div class="user-name" id="adminName">—</div>
+          <div class="user-role admin" id="roleTag"></div>
+        </div>
+        <span class="user-caret">▾</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-tabs">
+    <button class="atab-btn active" onclick="showAdminTab('reports',this)">📊 Reports</button>
+    <button class="atab-btn" onclick="showAdminTab('attendance',this)">⏱ Attendance</button>
+    <button class="atab-btn" onclick="showAdminTab('performance',this)">👤 Staff</button>
+    <button class="atab-btn" onclick="showAdminTab('inventory',this)">📦 Ingredients</button>
+    <button class="atab-btn" onclick="showAdminTab('menu',this)">🍽 Menu</button>
+    <button class="atab-btn" onclick="showAdminTab('promos',this)">🏷 Promos</button>
+    <button class="atab-btn" onclick="showAdminTab('staffmgmt',this)">👥 Staff Mgmt</button>
+    <button class="atab-btn" onclick="showAdminTab('settings',this)">⚙️ Settings</button>
+  </div>
+
+  <div id="atab-reports" class="page active" style="display:block;">
+    <div class="section-title">📊 Sales Reports</div>
+    <div class="page-controls">
+      <input type="date" id="filterDate" class="field-input" style="max-width:180px;" onchange="loadReports()">
+      <button class="btn-apply" onclick="clearDateFilter()">All Time</button>
+      <button class="btn-apply" onclick="exportCSV()">📥 Export CSV</button>
+      <button class="btn-apply" onclick="syncOfflineOrders()">🔄 Sync Offline</button>
+    </div>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-label">Orders</div><div class="stat-val" id="statOrders">—</div></div>
+      <div class="stat-card"><div class="stat-label">Revenue</div><div class="stat-val green" id="statRevenue">—</div></div>
+      <div class="stat-card"><div class="stat-label">Avg Order</div><div class="stat-val" id="statAvg">—</div></div>
+      <div class="stat-card"><div class="stat-label">Pending Sync</div><div class="stat-val" id="statOffline">0</div></div>
+    </div>
+    <div class="form-card" style="margin-bottom:20px;">
+      <div class="form-title">🏆 Best Selling Items</div>
+      <div id="bestSellersChart" class="best-sellers"></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Date & Time</th><th>Cashier</th><th>Type</th><th>Payment</th><th>Items</th><th>Status</th><th>Total</th><th></th></tr></thead>
+        <tbody id="ordersBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="atab-attendance" class="page">
+    <div class="section-title">⏱ Attendance Records</div>
+    <div class="page-controls">
+      <input type="date" id="attendDate" class="field-input" style="max-width:180px;" onchange="loadAttendance()">
+      <button class="btn-apply" onclick="document.getElementById('attendDate').value='';loadAttendance()">All</button>
+    </div>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-label">Pending Approval</div><div class="stat-val" id="attendPending">—</div></div>
+      <div class="stat-card"><div class="stat-label">Checked In Today</div><div class="stat-val green" id="attendToday">—</div></div>
+    </div>
+    <div id="attendancePendingSection">
+      <div class="form-title" style="margin-bottom:12px;">Needs Approval</div>
+      <div class="attend-grid" id="pendingAttendGrid"></div>
+    </div>
+    <div class="form-title" style="margin:16px 0 12px;">All Records</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Staff</th><th>Check In</th><th>Check Out</th><th>Duration</th><th>Status</th><th>Approved By</th><th></th></tr></thead>
+        <tbody id="attendanceBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="atab-performance" class="page">
+    <div class="section-title">👤 Staff Performance</div>
+    <div class="page-controls">
+      <input type="date" id="perfDateFrom" class="field-input" style="max-width:160px;" placeholder="From">
+      <input type="date" id="perfDateTo" class="field-input" style="max-width:160px;" placeholder="To">
+      <button class="btn-apply" onclick="loadPerformance()">Filter</button>
+      <button class="btn-apply" onclick="clearPerfFilter()">All Time</button>
+    </div>
+    <div id="perfGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;"></div>
+  </div>
+
+  <div id="atab-inventory" class="page">
+    <div class="section-title">📦 Ingredient Inventory</div>
+    <div class="page-controls">
+      <button class="btn-apply" onclick="loadInventory()">🔄 Refresh</button>
+    </div>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-label">Total Ingredients</div><div class="stat-val" id="invTotal">—</div></div>
+      <div class="stat-card"><div class="stat-label">Low Stock</div><div class="stat-val" style="color:#ca8a04;" id="invLow">—</div></div>
+      <div class="stat-card"><div class="stat-label">Out of Stock</div><div class="stat-val" style="color:var(--red);" id="invOut">—</div></div>
+    </div>
+    <div class="inv-grid" id="invGrid"></div>
+    <div class="ing-table-section">
+      <div class="form-title">Ingredient → Dish Mapping</div>
+      <div class="table-wrap" style="margin-top:10px;">
+        <table>
+          <thead><tr><th>Ingredient</th><th>Used In</th><th>Per Serving</th><th>Unit</th></tr></thead>
+          <tbody id="ingMapBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="atab-menu" class="page">
+    <div class="section-title">🍽 Menu Management</div>
+    <div class="mgmt-layout">
+      <div class="form-card">
+        <div class="form-title" id="menuFormTitle">Add Item</div>
+        <input type="hidden" id="editId">
+        <div class="form-group"><label>Name</label><input type="text" id="pName" placeholder="e.g. Adobo"></div>
+        <div class="form-group"><label>Base Price</label><input type="number" id="pPrice" placeholder="0.00" min="0" step="0.01"></div>
+        <div class="form-group"><label>Category</label><select id="pCat"><option value="">Select…</option></select></div>
+        <div class="form-group"><label>Initial Stock</label><input type="number" id="pStock" placeholder="0" min="0"></div>
+        <div class="form-group" style="display:flex;align-items:center;gap:10px;">
+          <input type="checkbox" id="pAvailable" checked style="width:auto;">
+          <label for="pAvailable" style="text-transform:none;font-size:13px;">Available for ordering</label>
+        </div>
+        <button class="btn-primary" onclick="saveProduct()">Save Item</button>
+        <button class="btn-ghost" style="margin-top:8px;" onclick="cancelProductEdit()">Cancel</button>
+        <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">
+          <div class="form-title" id="sizeFormTitle">Add Size / Pack</div>
+          <input type="hidden" id="sizeEditId">
+          <div class="form-group"><label>Dish</label><select id="sizeProdId"><option value="">Select dish…</option></select></div>
+          <div class="form-group"><label>Label</label><input type="text" id="sizeLabel" placeholder="e.g. Solo Pack, Large, 2 pcs"></div>
+          <div class="form-group"><label>Price</label><input type="number" id="sizePrice" placeholder="0.00" min="0" step="0.01"></div>
+          <button class="btn-primary" onclick="saveSize()">Save Size</button>
+          <button class="btn-ghost" style="margin-top:8px;" onclick="cancelSizeEdit()">Cancel</button>
+        </div>
+      </div>
+      <div>
+        <div class="table-wrap" style="margin-bottom:16px;">
+          <table>
+            <thead><tr><th>Name</th><th>Category</th><th>Price</th><th>Status</th><th></th></tr></thead>
+            <tbody id="productsTableBody"></tbody>
+          </table>
+        </div>
+        <div class="form-title">Sizes / Packs</div>
+        <div class="table-wrap" style="margin-top:10px;">
+          <table>
+            <thead><tr><th>Dish</th><th>Label</th><th>Price</th><th>Available</th><th></th></tr></thead>
+            <tbody id="sizesTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="atab-promos" class="page">
+    <div class="section-title">🏷 Promo Codes</div>
+    <div class="mgmt-layout">
+      <div class="form-card">
+        <div class="form-title" id="promoFormTitle">Add Promo</div>
+        <input type="hidden" id="promoEditId">
+        <div class="form-group"><label>Code</label><input type="text" id="promoCode" placeholder="e.g. SAVE20"></div>
+        <div class="form-group"><label>Type</label>
+          <select id="promoType"><option value="percent">Percent Off (%)</option><option value="fixed">Fixed Amount</option></select>
+        </div>
+        <div class="form-group"><label>Value</label><input type="number" id="promoValue" placeholder="e.g. 10" min="0" step="0.01"></div>
+        <button class="btn-primary" onclick="savePromo()">Save Promo</button>
+        <button class="btn-ghost" style="margin-top:8px;" onclick="cancelPromoEdit()">Cancel</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Code</th><th>Type</th><th>Value</th><th></th></tr></thead>
+          <tbody id="promosTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="atab-staffmgmt" class="page">
+    <div class="section-title">👥 Staff Management</div>
+    <div class="mgmt-layout">
+      <div class="form-card">
+        <div class="form-title" id="staffFormTitle">Add Staff</div>
+        <input type="hidden" id="staffEditId">
+        <div class="form-group"><label>Full Name</label><input type="text" id="staffName" placeholder="e.g. Juan Dela Cruz"></div>
+        <div class="form-group"><label>Username</label><input type="text" id="staffUser" placeholder="e.g. juan" autocomplete="off"></div>
+        <div class="form-group"><label>Password</label><input type="text" id="staffPass" placeholder="password" autocomplete="new-password"></div>
+        <div class="form-group"><label>Position</label><input type="text" id="staffPosition" placeholder="e.g. Cashier"></div>
+        <div class="form-group"><label>Access Level</label>
+          <select id="staffRole"><option value="Staff">Staff</option><option value="Admin">Admin</option><option value="Manager">Manager</option></select>
+        </div>
+        <div class="form-group"><label>Date of Birth</label><input type="date" id="staffDob"></div>
+        <button class="btn-primary" onclick="saveStaff()">Save Staff</button>
+        <button class="btn-ghost" style="margin-top:8px;" onclick="cancelStaffEdit()">Cancel</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Name</th><th>Username</th><th>Position</th><th>Access</th><th></th></tr></thead>
+          <tbody id="staffTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="atab-settings" class="page">
+    <div class="section-title">⚙️ Settings</div>
+    <div class="settings-grid">
+      <div class="form-card">
+        <div class="form-title">🧾 Receipt Info</div>
+        <div class="form-group"><label>Restaurant Name</label><input type="text" id="settingName" placeholder="Mommy's FoodHub"></div>
+        <div class="form-group"><label>Address</label><input type="text" id="settingAddress" placeholder="123 Main St, Davao City"></div>
+        <div class="form-group"><label>Contact</label><input type="text" id="settingContact" placeholder="09XX-XXX-XXXX"></div>
+        <div class="form-group"><label>Footer</label><input type="text" id="settingFooter" placeholder="Thank you!"></div>
+        <button class="btn-primary" onclick="saveSettings()">Save</button>
+      </div>
+      <div class="form-card">
+        <div class="form-title">🎨 Theme</div>
+        <div class="form-group">
+          <label>Accent Color</label>
+          <div class="theme-swatches" id="themeSwatches">
+            <button class="swatch active" data-color="#f59e0b" style="background:#f59e0b;"></button>
+            <button class="swatch" data-color="#ef4444" style="background:#ef4444;"></button>
+            <button class="swatch" data-color="#10b981" style="background:#10b981;"></button>
+            <button class="swatch" data-color="#3b82f6" style="background:#3b82f6;"></button>
+            <button class="swatch" data-color="#8b5cf6" style="background:#8b5cf6;"></button>
+            <button class="swatch" data-color="#ec4899" style="background:#ec4899;"></button>
+            <button class="swatch" data-color="#f97316" style="background:#f97316;"></button>
+            <button class="swatch custom-swatch">
+              <input type="color" id="customColor" onchange="applyCustomColor(this.value)" style="opacity:0;position:absolute;inset:0;width:100%;height:100%;cursor:pointer;">🎨
+            </button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Background</label>
+          <div class="theme-swatches">
+            <button class="bg-swatch active" data-bg="#1a1008" style="background:#1a1008;border:2px solid #555;"></button>
+            <button class="bg-swatch" data-bg="#0f172a" style="background:#0f172a;"></button>
+            <button class="bg-swatch" data-bg="#111827" style="background:#111827;"></button>
+            <button class="bg-swatch" data-bg="#1a1a2e" style="background:#1a1a2e;"></button>
+            <button class="bg-swatch" data-bg="#0d0d0d" style="background:#0d0d0d;"></button>
+          </div>
+        </div>
+        <button class="btn-ghost" onclick="resetTheme()">Reset Default</button>
+      </div>
+      <div class="form-card">
+        <div class="form-title">💰 Currency</div>
+        <div class="currency-btns" id="currencyBtns">
+          <button class="curr-btn active" data-symbol="₱">₱ PHP</button>
+          <button class="curr-btn" data-symbol="$">$ USD</button>
+          <button class="curr-btn" data-symbol="€">€ EUR</button>
+          <button class="curr-btn" data-symbol="£">£ GBP</button>
+          <button class="curr-btn" data-symbol="¥">¥ JPY</button>
+        </div>
+        <div class="form-group" style="margin-top:12px;">
+          <label>Custom Symbol</label>
+          <div style="display:flex;gap:8px;">
+            <input type="text" id="customCurrency" placeholder="e.g. ₩" maxlength="4" style="max-width:100px;">
+            <button class="btn-apply" onclick="applyCustomCurrency()">Apply</button>
+          </div>
+        </div>
+      </div>
+      <div class="form-card">
+        <div class="form-title">🔑 Change Password</div>
+        <div class="form-group"><label>Current Password</label><input type="password" id="curPass" autocomplete="current-password"></div>
+        <div class="form-group"><label>New Password</label><input type="password" id="newPass" autocomplete="new-password"></div>
+        <div class="form-group"><label>Confirm New Password</label><input type="password" id="confirmPass" autocomplete="new-password"></div>
+        <button class="btn-primary" onclick="changePassword()">Update Password</button>
+      </div>
+      <div class="form-card">
+        <div class="form-title">📲 Install App</div>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;line-height:1.6;">Install FoodHub POS as an app on this device.</p>
+        <button class="btn-primary" id="installBtn" onclick="installApp()" style="display:none;">📲 Install Now</button>
+        <div id="installStatus" style="font-size:13px;color:var(--text-muted);">Not available or already installed.</div>
+        <div style="margin-top:14px;font-size:12px;color:var(--text-muted);line-height:1.8;">
+          <strong style="color:var(--text);">iPhone:</strong> Share → Add to Home Screen<br>
+          <strong style="color:var(--text);">Android:</strong> ⋮ → Add to Home Screen<br>
+          <strong style="color:var(--text);">PC:</strong> Click ⊕ in address bar
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="accountModal">
+  <div class="modal-box" style="max-width:320px;">
+    <div style="text-align:center;margin-bottom:16px;">
+      <div class="account-avatar" id="accountAvatar"></div>
+      <div style="font-size:17px;font-weight:700;margin-top:10px;" id="accountName"></div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:4px;" id="accountMeta"></div>
+    </div>
+    <div class="account-row"><span>Employee ID</span><strong id="accountId"></strong></div>
+    <div class="account-row"><span>Access</span><strong id="accountAccess"></strong></div>
+    <div class="modal-footer" style="margin-top:16px;">
+      <button class="btn-modal-cancel" style="color:var(--red);border-color:var(--red);" onclick="doLogout()">🚪 Logout</button>
+      <button class="btn-modal-ok" onclick="closeAccountModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="restockModal">
+  <div class="modal-box" style="max-width:340px;">
+    <div class="modal-title">Restock Ingredient</div>
+    <input type="hidden" id="restockItemId">
+    <div style="font-size:14px;color:var(--text-muted);margin-bottom:14px;" id="restockItemName"></div>
+    <div class="form-group"><label>New Quantity</label><input type="number" id="restockQty" min="0" placeholder="0"></div>
+    <div class="modal-footer" style="margin-top:14px;">
+      <button class="btn-modal-cancel" onclick="closeRestockModal()">Cancel</button>
+      <button class="btn-modal-ok" onclick="saveRestock()">Update</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="orderStatusModal">
+  <div class="modal-box" style="max-width:320px;">
+    <div class="modal-title">Update Order Status</div>
+    <input type="hidden" id="statusOrderId">
+    <div style="font-size:14px;color:var(--text-muted);margin-bottom:16px;" id="statusOrderInfo"></div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <button class="kaction-btn" onclick="setOrderStatus('Accepted')">🔵 Mark Accepted</button>
+      <button class="kaction-btn" onclick="setOrderStatus('Cooking')">🟠 Mark Cooking</button>
+      <button class="kaction-btn success" onclick="setOrderStatus('Ready')">🟢 Mark Ready</button>
+      <button class="kaction-btn success" onclick="setOrderStatus('Completed')">✅ Mark Completed</button>
+      <button class="kaction-btn danger" onclick="setOrderStatus('Cancelled')">❌ Cancel Order</button>
+      <button class="kaction-btn danger" onclick="setOrderStatus('Refunded')">↩ Mark Refunded</button>
+    </div>
+    <div class="modal-footer" style="margin-top:14px;">
+      <button class="btn-modal-cancel" onclick="closeStatusModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+window.supabase = createClient(
+  'https://oomojeutmbmomeiqycag.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vbW9qZXV0bWJtb21laXF5Y2FnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0MTM5OTYsImV4cCI6MjA4Nzk4OTk5Nn0.JUOZsj8EYueyoSbNtWdg-fLOvNMhYFa8RYgVNebdsxc'
+);
+</script>
+<script src="JS/admin.js" type="module"></script>
+<script>
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); deferredPrompt = e;
+  const btn = document.getElementById('installBtn');
+  const st = document.getElementById('installStatus');
+  if (btn) btn.style.display = 'block';
+  if (st) st.style.display = 'none';
+});
+window.installApp = function() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(() => { deferredPrompt = null; document.getElementById('installBtn').style.display = 'none'; });
+};
+window.addEventListener('appinstalled', () => {
+  const btn = document.getElementById('installBtn');
+  const st = document.getElementById('installStatus');
+  if (btn) btn.style.display = 'none';
+  if (st) { st.style.display = 'block'; st.textContent = '✅ Installed!'; }
+});
+</script>
+</body>
+</html>
