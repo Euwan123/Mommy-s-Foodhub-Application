@@ -589,7 +589,7 @@ tr:hover td { background: var(--surface2); }
   <!-- ════════════════════════════════════ -->
   <div id="adminView">
 
-    <div class="admin-tabs">
+<div class="admin-tabs" id="adminTabs">
       <button class="atab-btn active" onclick="showAdminTab('reports',this)">📊 Reports</button>
       <button class="atab-btn" onclick="showAdminTab('attendance',this)">⏱ Attendance</button>
       <button class="atab-btn" onclick="showAdminTab('performance',this)">👤 Staff</button>
@@ -966,7 +966,7 @@ const sb = window.supabase;
 
 // ── STATE ──────────────────────────────────────────────────────
 let currentUser = null, activeAttendanceId = null;
-let currentViewMode = 'pos'; // 'pos' or 'admin'
+let currentViewMode = 'pos';
 let cart = [], allProducts = [], allCategories = [], allPromos = [], allSizes = [];
 let allAdminProducts = [], allAdminCategories = [], allAdminPromos = [], allStaff = [], allAdminSizes = [], allItems = [];
 let selectedCategory = 'All', activePromo = null;
@@ -974,6 +974,7 @@ let selectedPayment = 'Cash', selectedPaymentM = 'Cash';
 let selectedOrderType = 'Dine-in', selectedOrderTypeM = 'Dine-in';
 let checkoutSource = 'desktop', orderCounter = 1;
 let kitchenFilter = 'all', kitchenOrders = [];
+let adminOverride = false, adminPanelMode = false;
 
 const S = () => JSON.parse(localStorage.getItem('pos_settings') || '{}');
 const sym = () => S().currency || '₱';
@@ -1029,14 +1030,13 @@ function launchApp(user) {
 
 function buildTopbarNav() {
   const nav = document.getElementById('topbarNav');
-  const admin = isAdmin();
   nav.innerHTML = `
-    <button class="nav-btn active" id="navCashier" onclick="showTab('cashier',this)">🧾 Cashier</button>
-    <button class="nav-btn" id="navKitchen" onclick="showTab('kitchen',this)">🍳 Kitchen Board</button>
-    <button class="nav-btn" id="navIngredients" onclick="openAdminSection('inventory')">📦 Ingredients</button>
-    <button class="nav-btn" id="navPromosMain" onclick="openAdminSection('promos')">🏷 Promos</button>
-    <button class="nav-btn" id="navSettingsMain" onclick="openAdminSection('settings')">⚙️ Settings</button>
-    ${admin ? `<button class="nav-btn" id="navAdminPanel" onclick="openAdminSection('reports')">🛠 Admin Panel</button>` : ''}
+    <button class="nav-btn active" id="navCashier" onclick="goToCashier(this)">🧾 Cashier</button>
+    <button class="nav-btn" id="navKitchen" onclick="goToKitchen(this)">🍳 Kitchen Board</button>
+    <button class="nav-btn" id="navIngredients" onclick="openSectionView('inventory', this)">📦 Ingredients</button>
+    <button class="nav-btn" id="navPromosMain" onclick="openSectionView('promos', this)">🏷 Promos</button>
+    <button class="nav-btn" id="navSettingsMain" onclick="openSectionView('settings', this)">⚙️ Settings</button>
+    <button class="nav-btn" id="navAdminPanel" onclick="openAdminPanel(this)">🛠 Admin Panel</button>
   `;
 }
 
@@ -1058,12 +1058,13 @@ window.switchToAdmin = function() {
   document.getElementById('adminView').classList.add('active');
   document.getElementById('shiftBadge').style.display = 'none';
   document.getElementById('posBottomNav').style.display = 'none';
-  // show admin bottom nav on mobile
   document.getElementById('adminBottomNav').style.display = '';
   document.querySelectorAll('#topbarNav .nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('navAdminPanel')?.classList.add('active');
   loadAdminData();
   loadReports();
+  const tabs = document.getElementById('adminTabs');
+  if (tabs) tabs.style.display = adminPanelMode ? '' : 'none';
 };
 
 window.openAdminSection = function(section) {
@@ -1080,6 +1081,61 @@ window.openAdminSection = function(section) {
     showAdminTab(section);
   }
 };
+
+window.goToCashier = function(btn) {
+  adminPanelMode = false;
+  switchToPOS();
+  showTab('cashier', btn);
+};
+
+window.goToKitchen = function(btn) {
+  adminPanelMode = false;
+  switchToPOS();
+  showTab('kitchen', btn);
+};
+
+const canUseAdmin = () => isAdmin() || adminOverride;
+
+window.openAdminPanel = function(btn) {
+  if (!canUseAdmin()) {
+    const code = prompt('Enter admin code:');
+    if (code !== 'admin123') {
+      showToast('Incorrect admin code', 'error');
+      return;
+    }
+    adminOverride = true;
+  }
+  adminPanelMode = true;
+  switchToAdmin();
+  showAdminTab('reports', btn);
+};
+
+window.openSectionView = function(section, btn) {
+  adminPanelMode = false;
+  switchToAdmin();
+  const tabs = document.getElementById('adminTabs');
+  if (tabs) tabs.style.display = 'none';
+  document.querySelectorAll('#adminView .page').forEach(p => p.style.display = 'none');
+  if (section === 'settings') {
+    const tab = document.getElementById('atab-settings');
+    if (tab) {
+      tab.style.display = 'block';
+      loadSettingsForm();
+      applyTheme();
+    }
+    return;
+  }
+  const tab = document.getElementById('atab-' + section);
+  if (tab) {
+    tab.style.display = 'block';
+    if (section === 'inventory') loadInventory();
+    if (section === 'promos') renderPromosTable();
+  }
+  if (btn) {
+    document.querySelectorAll('#topbarNav .nav-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+}
 
 window.doLogout = function() {
   if (activeAttendanceId) { if (!confirm('You are still checked in. Log out anyway?')) return; }
