@@ -379,7 +379,6 @@ tr:hover td { background: var(--surface2); }
 
 <div id="offlineBanner">📵 You're offline — orders will sync when back online</div>
 
-<!-- ─── LOGIN ─────────────────────────────── -->
 <div id="loginScreen">
   <div class="login-box">
     <div class="logo">🍛 Mommy's FoodHub</div>
@@ -391,7 +390,6 @@ tr:hover td { background: var(--surface2); }
   </div>
 </div>
 
-<!-- ─── WELCOME ──────────────────────────── -->
 <div id="welcomeScreen">
   <div class="welcome-box">
     <div class="welcome-emoji">🍛</div>
@@ -401,18 +399,14 @@ tr:hover td { background: var(--surface2); }
   </div>
 </div>
 
-<!-- ─── APP ──────────────────────────────── -->
 <div id="app">
 
-  <!-- TOPBAR (shared) -->
   <div class="topbar">
     <div class="topbar-left">
       <div class="brand">🍛 FoodHub</div>
       <div class="shift-badge" id="shiftBadge" style="display:none;">⏱ Not checked in</div>
     </div>
-    <div class="topbar-center" id="topbarNav">
-      <!-- Filled dynamically by role -->
-    </div>
+    <div class="topbar-center" id="topbarNav"></div>
     <div class="topbar-right">
       <div class="user-chip" onclick="openAccountModal()">
         <div class="user-avatar" id="userAvatar">—</div>
@@ -852,7 +846,6 @@ tr:hover td { background: var(--surface2); }
       </div>
     </div>
 
-    <!-- Admin bottom nav -->
     <nav class="bottom-nav" id="adminBottomNav" style="display:none;">
       <button class="bnav-btn" onclick="switchToPOS()">🧾<span>POS</span></button>
       <button class="bnav-btn active" onclick="showAdminTab('reports',this)">📊<span>Reports</span></button>
@@ -861,9 +854,7 @@ tr:hover td { background: var(--surface2); }
     </nav>
   </div>
 
-</div><!-- /#app -->
-
-<!-- ─── MODALS ────────────────────────────── -->
+</div>
 <div class="modal-overlay" id="sizeModal">
   <div class="modal-box" style="max-width:340px;">
     <div class="modal-title" id="sizeModalTitle">Choose Size / Pack</div>
@@ -960,11 +951,8 @@ window.supabase = createClient(
 );
 </script>
 
-<!-- ─── COMBINED SCRIPT ────────────────────── -->
 <script type="module">
 const sb = window.supabase;
-
-// ── STATE ──────────────────────────────────────────────────────
 let currentUser = null, activeAttendanceId = null;
 let currentViewMode = 'pos';
 let cart = [], allProducts = [], allCategories = [], allPromos = [], allSizes = [];
@@ -1059,27 +1047,10 @@ window.switchToAdmin = function() {
   document.getElementById('shiftBadge').style.display = 'none';
   document.getElementById('posBottomNav').style.display = 'none';
   document.getElementById('adminBottomNav').style.display = '';
-  document.querySelectorAll('#topbarNav .nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('navAdminPanel')?.classList.add('active');
   loadAdminData();
   loadReports();
   const tabs = document.getElementById('adminTabs');
   if (tabs) tabs.style.display = adminPanelMode ? '' : 'none';
-};
-
-window.openAdminSection = function(section) {
-  switchToAdmin();
-  if (section === 'settings') {
-    const tab = document.getElementById('atab-settings');
-    if (tab) {
-      document.querySelectorAll('#adminView .page').forEach(p => p.style.display = 'none');
-      tab.style.display = 'block';
-      loadSettingsForm();
-      applyTheme();
-    }
-  } else {
-    showAdminTab(section);
-  }
 };
 
 window.goToCashier = function(btn) {
@@ -1106,8 +1077,10 @@ window.openAdminPanel = function(btn) {
     adminOverride = true;
   }
   adminPanelMode = true;
+  document.querySelectorAll('#topbarNav .nav-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
   switchToAdmin();
-  showAdminTab('reports', btn);
+  showAdminTab('reports', null);
 };
 
 window.openSectionView = function(section, btn) {
