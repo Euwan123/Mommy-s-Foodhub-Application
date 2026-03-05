@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="FoodHub POS">
-<meta name="theme-color" content="#f59e0b">
+<meta name="theme-color" content="#f59e0b" id="themeMetaColor">
 <title>Mommy's FoodHub — POS</title>
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/icon-192.png">
@@ -22,8 +22,8 @@
   <div class="login-box">
     <div class="logo">🍛 Mommy's FoodHub</div>
     <div class="sub">Cashier System — Staff Login</div>
-    <input type="text" id="loginUser" placeholder="Username" autocomplete="off">
-    <input type="password" id="loginPass" placeholder="Password">
+    <input type="text" id="loginUser" placeholder="Username" autocomplete="off" autocomplete="username">
+    <input type="password" id="loginPass" placeholder="Password" autocomplete="current-password">
     <button class="btn-login" onclick="doLogin()">Sign In</button>
     <div id="loginError"></div>
   </div>
@@ -51,11 +51,14 @@
       <button class="nav-btn admin-only" onclick="showPage('settings',this)" data-page="settings">⚙️ Settings</button>
     </nav>
     <div class="topbar-right">
-      <div class="cashier-badge">
-        <span id="cashierName">—</span>
-        <span id="roleTag" class="role-tag"></span>
+      <div class="user-chip" onclick="openAccountModal()">
+        <div class="user-avatar" id="userAvatar">—</div>
+        <div class="user-info">
+          <div class="user-name" id="cashierName">—</div>
+          <div class="user-role" id="roleTag"></div>
+        </div>
+        <span class="user-caret">▾</span>
       </div>
-      <button class="btn-logout" onclick="doLogout()">Logout</button>
     </div>
   </div>
 
@@ -84,7 +87,6 @@
             <div class="payment-btns">
               <button class="pay-btn active" onclick="setPayment('Cash',this)">💵 Cash</button>
               <button class="pay-btn" onclick="setPayment('GCash',this)">📱 GCash</button>
-              <button class="pay-btn" onclick="setPayment('Card',this)">💳 Card</button>
             </div>
           </div>
           <div class="form-group">
@@ -101,16 +103,16 @@
               <div class="cart-total-label">Total</div>
               <div id="discountLine" style="display:none;font-size:12px;color:var(--green);"></div>
             </div>
-            <div class="cart-total-amt">₱<span id="cartTotal">0.00</span></div>
+            <div class="cart-total-amt"><span id="currencySymbol">₱</span><span id="cartTotal">0.00</span></div>
           </div>
           <div class="change-calc" id="changeCalc" style="display:none;">
             <div class="change-row">
-              <label>Cash Received (₱)</label>
+              <label>Cash Received (<span class="curr-label">₱</span>)</label>
               <input type="number" id="cashReceived" placeholder="0.00" oninput="calcChange()" min="0">
             </div>
             <div class="change-row">
               <label>Change</label>
-              <div class="change-amt" id="changeAmt">₱0.00</div>
+              <div class="change-amt" id="changeAmt">0.00</div>
             </div>
           </div>
           <button class="btn-checkout" onclick="openCheckoutModal('desktop')">✔ Checkout</button>
@@ -127,7 +129,7 @@
         <div class="form-title" id="formTitle">Add New Item</div>
         <input type="hidden" id="editId">
         <div class="form-group"><label>Item Name</label><input type="text" id="pName" placeholder="e.g. Adobo"></div>
-        <div class="form-group"><label>Base Price (₱)</label><input type="number" id="pPrice" placeholder="0.00" min="0" step="0.01"></div>
+        <div class="form-group"><label>Base Price</label><input type="number" id="pPrice" placeholder="0.00" min="0" step="0.01"></div>
         <div class="form-group"><label>Category</label>
           <select id="pCat"><option value="">Select category...</option></select>
         </div>
@@ -195,7 +197,7 @@
         <input type="hidden" id="promoEditId">
         <div class="form-group"><label>Code</label><input type="text" id="promoCode" placeholder="e.g. SAVE20"></div>
         <div class="form-group"><label>Discount Type</label>
-          <select id="promoType"><option value="percent">Percent Off (%)</option><option value="fixed">Fixed Amount (₱)</option></select>
+          <select id="promoType"><option value="percent">Percent Off (%)</option><option value="fixed">Fixed Amount</option></select>
         </div>
         <div class="form-group"><label>Value</label><input type="number" id="promoValue" placeholder="e.g. 10" min="0" step="0.01"></div>
         <button class="btn-add" onclick="savePromo()">Save Promo</button>
@@ -215,8 +217,8 @@
         <div class="form-title" id="staffFormTitle">Add Staff</div>
         <input type="hidden" id="staffEditId">
         <div class="form-group"><label>Full Name</label><input type="text" id="staffName" placeholder="e.g. Juan Dela Cruz"></div>
-        <div class="form-group"><label>Username</label><input type="text" id="staffUser" placeholder="e.g. juan"></div>
-        <div class="form-group"><label>Password</label><input type="text" id="staffPass" placeholder="password"></div>
+        <div class="form-group"><label>Username</label><input type="text" id="staffUser" placeholder="e.g. juan" autocomplete="off"></div>
+        <div class="form-group"><label>Password</label><input type="text" id="staffPass" placeholder="password" autocomplete="new-password"></div>
         <div class="form-group"><label>Position</label><input type="text" id="staffPosition" placeholder="e.g. Cashier"></div>
         <div class="form-group"><label>Access Level</label>
           <select id="staffRole"><option value="Staff">Staff</option><option value="Admin">Admin</option><option value="Manager">Manager</option></select>
@@ -233,13 +235,88 @@
   </div>
 
   <div class="page" id="page-settings">
-    <div class="section-title">Receipt Settings</div>
-    <div class="form-card" style="max-width:500px;">
-      <div class="form-group"><label>Restaurant Name</label><input type="text" id="settingName" placeholder="Mommy's FoodHub"></div>
-      <div class="form-group"><label>Address</label><input type="text" id="settingAddress" placeholder="e.g. 123 Main St, Davao City"></div>
-      <div class="form-group"><label>Contact Number</label><input type="text" id="settingContact" placeholder="e.g. 09XX-XXX-XXXX"></div>
-      <div class="form-group"><label>Receipt Footer</label><input type="text" id="settingFooter" placeholder="Thank you for dining with us!"></div>
-      <button class="btn-add" onclick="saveSettings()">Save Settings</button>
+    <div class="section-title">Settings</div>
+    <div class="settings-grid">
+
+      <div class="form-card">
+        <div class="form-title">🧾 Receipt Info</div>
+        <div class="form-group"><label>Restaurant Name</label><input type="text" id="settingName" placeholder="Mommy's FoodHub"></div>
+        <div class="form-group"><label>Address</label><input type="text" id="settingAddress" placeholder="e.g. 123 Main St, Davao City"></div>
+        <div class="form-group"><label>Contact Number</label><input type="text" id="settingContact" placeholder="e.g. 09XX-XXX-XXXX"></div>
+        <div class="form-group"><label>Receipt Footer</label><input type="text" id="settingFooter" placeholder="Thank you for dining with us!"></div>
+        <button class="btn-add" onclick="saveSettings()">Save Receipt Info</button>
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">🎨 Theme</div>
+        <div class="form-group">
+          <label>Accent Color</label>
+          <div class="theme-swatches" id="themeSwatches">
+            <button class="swatch active" data-color="#f59e0b" style="background:#f59e0b;" title="Amber"></button>
+            <button class="swatch" data-color="#ef4444" style="background:#ef4444;" title="Red"></button>
+            <button class="swatch" data-color="#10b981" style="background:#10b981;" title="Green"></button>
+            <button class="swatch" data-color="#3b82f6" style="background:#3b82f6;" title="Blue"></button>
+            <button class="swatch" data-color="#8b5cf6" style="background:#8b5cf6;" title="Purple"></button>
+            <button class="swatch" data-color="#ec4899" style="background:#ec4899;" title="Pink"></button>
+            <button class="swatch" data-color="#f97316" style="background:#f97316;" title="Orange"></button>
+            <button class="swatch custom-swatch" title="Custom">
+              <input type="color" id="customColor" onchange="applyCustomColor(this.value)" style="opacity:0;position:absolute;inset:0;width:100%;height:100%;cursor:pointer;">
+              🎨
+            </button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Background</label>
+          <div class="theme-swatches">
+            <button class="bg-swatch active" data-bg="#1a1008" style="background:#1a1008;border:2px solid #555;" title="Dark Brown"></button>
+            <button class="bg-swatch" data-bg="#0f172a" style="background:#0f172a;" title="Dark Blue"></button>
+            <button class="bg-swatch" data-bg="#111827" style="background:#111827;" title="Dark Gray"></button>
+            <button class="bg-swatch" data-bg="#1a1a2e" style="background:#1a1a2e;" title="Midnight"></button>
+            <button class="bg-swatch" data-bg="#0d0d0d" style="background:#0d0d0d;" title="Black"></button>
+          </div>
+        </div>
+        <button class="btn-clear" style="margin-top:4px;" onclick="resetTheme()">Reset to Default</button>
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">💰 Currency</div>
+        <div class="form-group">
+          <label>Currency Symbol</label>
+          <div class="currency-btns" id="currencyBtns">
+            <button class="curr-btn active" data-symbol="₱" data-label="PHP">₱ PHP</button>
+            <button class="curr-btn" data-symbol="$" data-label="USD">$ USD</button>
+            <button class="curr-btn" data-symbol="€" data-label="EUR">€ EUR</button>
+            <button class="curr-btn" data-symbol="£" data-label="GBP">£ GBP</button>
+            <button class="curr-btn" data-symbol="¥" data-label="JPY">¥ JPY</button>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:8px;">
+          <label>Custom Symbol</label>
+          <input type="text" id="customCurrency" placeholder="e.g. ₩" maxlength="4" style="max-width:120px;">
+          <button class="btn-apply" style="margin-top:6px;" onclick="applyCustomCurrency()">Apply</button>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">📲 Install App</div>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;line-height:1.6;">Install FoodHub POS on your device for faster access — works like a real app, no app store needed.</p>
+        <button class="btn-add" id="installBtn" onclick="installApp()" style="display:none;">📲 Install on this device</button>
+        <div id="installStatus" style="font-size:13px;color:var(--text-muted);">Already installed or not available on this browser.</div>
+        <div style="margin-top:16px;font-size:12px;color:var(--text-muted);line-height:1.7;">
+          <strong style="color:var(--text);">iPhone / Safari:</strong> Tap Share → Add to Home Screen<br>
+          <strong style="color:var(--text);">Android / Chrome:</strong> Tap ⋮ → Add to Home Screen<br>
+          <strong style="color:var(--text);">PC / Chrome:</strong> Click ⊕ in address bar
+        </div>
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">🔑 Change Password</div>
+        <div class="form-group"><label>Current Password</label><input type="password" id="curPass" autocomplete="current-password"></div>
+        <div class="form-group"><label>New Password</label><input type="password" id="newPass" autocomplete="new-password"></div>
+        <div class="form-group"><label>Confirm New Password</label><input type="password" id="confirmPass" autocomplete="new-password"></div>
+        <button class="btn-add" onclick="changePassword()">Update Password</button>
+      </div>
+
     </div>
   </div>
 </div>
@@ -268,7 +345,6 @@
       <div class="payment-btns">
         <button class="pay-btn-m active" onclick="setPaymentM('Cash',this)">💵 Cash</button>
         <button class="pay-btn-m" onclick="setPaymentM('GCash',this)">📱 GCash</button>
-        <button class="pay-btn-m" onclick="setPaymentM('Card',this)">💳 Card</button>
       </div>
     </div>
     <div class="form-group">
@@ -285,16 +361,16 @@
         <div class="cart-total-label">Total</div>
         <div id="discountLineM" style="display:none;font-size:12px;color:var(--green);"></div>
       </div>
-      <div class="cart-total-amt">₱<span id="cartTotalM">0.00</span></div>
+      <div class="cart-total-amt"><span class="curr-sym-m">₱</span><span id="cartTotalM">0.00</span></div>
     </div>
     <div class="change-calc" id="changeCalcM" style="display:none;">
       <div class="change-row">
-        <label>Cash Received (₱)</label>
+        <label>Cash Received (<span class="curr-label">₱</span>)</label>
         <input type="number" id="cashReceivedM" placeholder="0.00" oninput="calcChangeM()" min="0">
       </div>
       <div class="change-row">
         <label>Change</label>
-        <div class="change-amt" id="changeAmtM">₱0.00</div>
+        <div class="change-amt" id="changeAmtM">0.00</div>
       </div>
     </div>
     <button class="btn-checkout" onclick="openCheckoutModal('mobile')">✔ Checkout</button>
@@ -315,14 +391,25 @@
   <button class="admin-only" onclick="showPage('promos',null);closeMoreMenu()">🏷 Promos</button>
   <button class="admin-only" onclick="showPage('staff',null);closeMoreMenu()">👥 Staff</button>
   <button class="admin-only" onclick="showPage('settings',null);closeMoreMenu()">⚙️ Settings</button>
+  <button onclick="openAccountModal();closeMoreMenu()">👤 Account</button>
   <button onclick="doLogout();closeMoreMenu()">🚪 Logout</button>
 </div>
 
-<div id="installBanner">
-  <div id="installBannerContent">
-    <span>📲 Install FoodHub POS as an app!</span>
-    <button onclick="installApp()">Install</button>
-    <button onclick="dismissInstall()">✕</button>
+<div class="modal-overlay" id="accountModal">
+  <div class="modal-box" style="max-width:340px;">
+    <div style="text-align:center;margin-bottom:20px;">
+      <div class="account-avatar" id="accountAvatar"></div>
+      <div style="font-size:18px;font-weight:700;margin-top:10px;" id="accountName"></div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:4px;" id="accountMeta"></div>
+    </div>
+    <div class="account-row"><span>Username</span><strong id="accountUsername"></strong></div>
+    <div class="account-row"><span>Position</span><strong id="accountPosition"></strong></div>
+    <div class="account-row"><span>Access Level</span><strong id="accountAccess"></strong></div>
+    <div class="account-row"><span>Employee ID</span><strong id="accountId"></strong></div>
+    <div class="modal-footer" style="margin-top:20px;flex-direction:column;gap:8px;">
+      <button class="btn-modal-ok" onclick="closeAccountModal();showPage('settings',null)">⚙️ Settings</button>
+      <button class="btn-modal-cancel" style="color:var(--red);border-color:var(--red);" onclick="doLogout();closeAccountModal()">🚪 Logout</button>
+    </div>
   </div>
 </div>
 
@@ -373,12 +460,38 @@ window.supabase = createClient(
 <script src="JS/script.js" type="module"></script>
 <script>
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+
 let deferredPrompt;
-window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; document.getElementById('installBanner').classList.add('show'); });
-window.installApp = function() { if (!deferredPrompt) return; deferredPrompt.prompt(); deferredPrompt.userChoice.then(() => { deferredPrompt = null; document.getElementById('installBanner').classList.remove('show'); }); };
-window.dismissInstall = function() { document.getElementById('installBanner').classList.remove('show'); };
-window.addEventListener('appinstalled', () => document.getElementById('installBanner').classList.remove('show'));
-window.addEventListener('online', () => { document.getElementById('offlineBanner').classList.remove('show'); if (window.syncOfflineOrders) syncOfflineOrders(); });
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  const btn = document.getElementById('installBtn');
+  const status = document.getElementById('installStatus');
+  if (btn) { btn.style.display = 'block'; }
+  if (status) { status.style.display = 'none'; }
+});
+
+window.installApp = function() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(() => {
+    deferredPrompt = null;
+    const btn = document.getElementById('installBtn');
+    if (btn) btn.style.display = 'none';
+  });
+};
+
+window.addEventListener('appinstalled', () => {
+  const btn = document.getElementById('installBtn');
+  const status = document.getElementById('installStatus');
+  if (btn) btn.style.display = 'none';
+  if (status) { status.style.display = 'block'; status.textContent = '✅ App installed successfully!'; }
+});
+
+window.addEventListener('online', () => {
+  document.getElementById('offlineBanner').classList.remove('show');
+  if (window.syncOfflineOrders) syncOfflineOrders();
+});
 window.addEventListener('offline', () => document.getElementById('offlineBanner').classList.add('show'));
 if (!navigator.onLine) document.getElementById('offlineBanner').classList.add('show');
 </script>

@@ -14,7 +14,15 @@ let selectedOrderType = 'Dine-in';
 let selectedOrderTypeM = 'Dine-in';
 let orderCounter = 1;
 let checkoutSource = 'desktop';
-let settings = { name: "Mommy's FoodHub", address: '', contact: '', footer: 'Thank you for dining with us! 🙏' };
+let settings = {
+  name: "Mommy's FoodHub",
+  address: '',
+  contact: '',
+  footer: 'Thank you for dining with us! 🙏',
+  currency: '₱',
+  themeColor: '#f59e0b',
+  bgColor: '#1a1008'
+};
 
 window.doLogin = async function () {
   const u = document.getElementById('loginUser').value.trim();
@@ -40,18 +48,21 @@ function showWelcome(user) {
 
 function launchApp(user) {
   document.getElementById('cashierName').textContent = user.Name;
+  document.getElementById('userAvatar').textContent = user.Name.charAt(0).toUpperCase();
   const rt = document.getElementById('roleTag');
   rt.textContent = user.AccessLevel;
-  rt.className = 'role-tag ' + (user.AccessLevel === 'Admin' || user.AccessLevel === 'Manager' ? 'admin' : 'cashier');
+  rt.className = 'user-role ' + (user.AccessLevel === 'Admin' || user.AccessLevel === 'Manager' ? 'admin' : 'cashier');
   const isAdmin = user.AccessLevel === 'Admin' || user.AccessLevel === 'Manager';
   document.querySelectorAll('.admin-only').forEach(el => el.style.display = isAdmin ? '' : 'none');
   const app = document.getElementById('app');
-  app.style.display = 'flex'; app.style.flexDirection = 'column';
+  app.style.display = 'flex';
+  app.style.flexDirection = 'column';
   init();
 }
 
 window.doLogout = function () {
-  currentUser = null; cart = [];
+  currentUser = null;
+  cart = [];
   document.getElementById('app').style.display = 'none';
   const ls = document.getElementById('loginScreen');
   ls.style.display = 'flex';
@@ -60,12 +71,29 @@ window.doLogout = function () {
   document.getElementById('loginPass').value = '';
 };
 
+window.openAccountModal = function () {
+  if (!currentUser) return;
+  document.getElementById('accountAvatar').textContent = currentUser.Name.charAt(0).toUpperCase();
+  document.getElementById('accountName').textContent = currentUser.Name;
+  document.getElementById('accountMeta').textContent = currentUser.Position || 'Staff';
+  document.getElementById('accountUsername').textContent = currentUser.Username || '—';
+  document.getElementById('accountPosition').textContent = currentUser.Position || '—';
+  document.getElementById('accountAccess').textContent = currentUser.AccessLevel;
+  document.getElementById('accountId').textContent = '#' + currentUser.EmployeeID;
+  document.getElementById('accountModal').classList.add('open');
+};
+
+window.closeAccountModal = function () {
+  document.getElementById('accountModal').classList.remove('open');
+};
+
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 });
 
 async function init() {
   loadSettings();
+  applyTheme();
   await loadCategories();
   await loadProducts();
   await loadPromos();
@@ -92,14 +120,128 @@ function loadSettings() {
 }
 
 window.saveSettings = function () {
-  settings = {
-    name: document.getElementById('settingName').value || "Mommy's FoodHub",
-    address: document.getElementById('settingAddress').value || '',
-    contact: document.getElementById('settingContact').value || '',
-    footer: document.getElementById('settingFooter').value || 'Thank you for dining with us! 🙏',
-  };
+  settings.name = document.getElementById('settingName').value || "Mommy's FoodHub";
+  settings.address = document.getElementById('settingAddress').value || '';
+  settings.contact = document.getElementById('settingContact').value || '';
+  settings.footer = document.getElementById('settingFooter').value || 'Thank you for dining with us! 🙏';
   localStorage.setItem('pos_settings', JSON.stringify(settings));
   showToast('Settings saved!', 'success');
+};
+
+function applyTheme() {
+  const s = JSON.parse(localStorage.getItem('pos_settings') || '{}');
+  const color = s.themeColor || '#f59e0b';
+  const bg = s.bgColor || '#1a1008';
+  const currency = s.currency || '₱';
+  setThemeColor(color, false);
+  setBgColor(bg, false);
+  setCurrency(currency, false);
+  document.querySelectorAll('.swatch').forEach(sw => {
+    sw.classList.toggle('active', sw.dataset.color === color);
+  });
+  document.querySelectorAll('.bg-swatch').forEach(sw => {
+    sw.classList.toggle('active', sw.dataset.bg === bg);
+  });
+  document.querySelectorAll('.curr-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.symbol === currency);
+  });
+}
+
+function setThemeColor(color, save = true) {
+  document.documentElement.style.setProperty('--amber', color);
+  const lighten = color + 'cc';
+  document.documentElement.style.setProperty('--amber-light', lighten);
+  document.getElementById('themeMetaColor').setAttribute('content', color);
+  if (save) {
+    settings.themeColor = color;
+    localStorage.setItem('pos_settings', JSON.stringify(settings));
+  }
+}
+
+function setBgColor(bg, save = true) {
+  const surface = adjustColor(bg, 14);
+  const surface2 = adjustColor(bg, 22);
+  const border = adjustColor(bg, 35);
+  document.documentElement.style.setProperty('--bg', bg);
+  document.documentElement.style.setProperty('--surface', surface);
+  document.documentElement.style.setProperty('--surface2', surface2);
+  document.documentElement.style.setProperty('--border', border);
+  if (save) {
+    settings.bgColor = bg;
+    localStorage.setItem('pos_settings', JSON.stringify(settings));
+  }
+}
+
+function adjustColor(hex, amount) {
+  const r = Math.min(255, parseInt(hex.slice(1,3),16) + amount);
+  const g = Math.min(255, parseInt(hex.slice(3,5),16) + amount);
+  const b = Math.min(255, parseInt(hex.slice(5,7),16) + amount);
+  return '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('');
+}
+
+function setCurrency(symbol, save = true) {
+  settings.currency = symbol;
+  document.querySelectorAll('#currencySymbol, .curr-sym-m').forEach(el => el.textContent = symbol);
+  document.querySelectorAll('.curr-label').forEach(el => el.textContent = symbol);
+  document.getElementById('cartFabTotal').textContent = symbol + parseFloat(document.getElementById('cartFabTotal').textContent.slice(1) || '0').toFixed(2);
+  if (save) localStorage.setItem('pos_settings', JSON.stringify(settings));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.swatch[data-color]').forEach(sw => {
+    sw.addEventListener('click', () => {
+      document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+      sw.classList.add('active');
+      setThemeColor(sw.dataset.color);
+    });
+  });
+  document.querySelectorAll('.bg-swatch').forEach(sw => {
+    sw.addEventListener('click', () => {
+      document.querySelectorAll('.bg-swatch').forEach(s => s.classList.remove('active'));
+      sw.classList.add('active');
+      setBgColor(sw.dataset.bg);
+    });
+  });
+  document.querySelectorAll('.curr-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.curr-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      setCurrency(btn.dataset.symbol);
+    });
+  });
+});
+
+window.applyCustomColor = function (val) { setThemeColor(val); };
+window.resetTheme = function () {
+  setThemeColor('#f59e0b');
+  setBgColor('#1a1008');
+  document.querySelectorAll('.swatch').forEach(s => s.classList.toggle('active', s.dataset.color === '#f59e0b'));
+  document.querySelectorAll('.bg-swatch').forEach(s => s.classList.toggle('active', s.dataset.bg === '#1a1008'));
+  showToast('Theme reset!', 'success');
+};
+window.applyCustomCurrency = function () {
+  const val = document.getElementById('customCurrency').value.trim();
+  if (!val) return;
+  document.querySelectorAll('.curr-btn').forEach(b => b.classList.remove('active'));
+  setCurrency(val);
+  showToast('Currency updated!', 'success');
+};
+
+window.changePassword = async function () {
+  const cur = document.getElementById('curPass').value;
+  const nw = document.getElementById('newPass').value;
+  const confirm = document.getElementById('confirmPass').value;
+  if (!cur || !nw || !confirm) { showToast('Fill in all fields', 'error'); return; }
+  if (nw !== confirm) { showToast('Passwords do not match', 'error'); return; }
+  if (nw.length < 4) { showToast('Password too short', 'error'); return; }
+  const { data } = await sb.from('Employee').select('Password').eq('EmployeeID', currentUser.EmployeeID).single();
+  if (!data || data.Password !== cur) { showToast('Current password is wrong', 'error'); return; }
+  await sb.from('Employee').update({ Password: nw }).eq('EmployeeID', currentUser.EmployeeID);
+  currentUser.Password = nw;
+  document.getElementById('curPass').value = '';
+  document.getElementById('newPass').value = '';
+  document.getElementById('confirmPass').value = '';
+  showToast('Password updated!', 'success');
 };
 
 async function loadCategories() {
@@ -112,7 +254,8 @@ function populateCategoryDropdown() {
   sel.innerHTML = '<option value="">Select category...</option>';
   allCategories.forEach(c => {
     const o = document.createElement('option');
-    o.value = c.CategoryID; o.textContent = c.CategoryName;
+    o.value = c.CategoryID;
+    o.textContent = c.CategoryName;
     sel.appendChild(o);
   });
 }
@@ -136,7 +279,8 @@ function renderCatFilters() {
     btn.onclick = () => {
       selectedCategory = cat;
       document.querySelectorAll('#catFilters .cat-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active'); renderProductGrid();
+      btn.classList.add('active');
+      renderProductGrid();
     };
     wrap.appendChild(btn);
   });
@@ -158,7 +302,7 @@ function renderProductGrid() {
     const low = stock <= 5;
     const d = document.createElement('div');
     d.className = 'product-card' + (low ? ' low-stock' : '');
-    d.innerHTML = `<div class="p-name">${p.Name}</div><div class="p-price">₱${parseFloat(p.BasePrice).toFixed(2)}</div><div class="p-cat">${p.Category?.CategoryName || ''}</div>${low ? `<div class="p-stock-badge">Low: ${stock}</div>` : ''}`;
+    d.innerHTML = `<div class="p-name">${p.Name}</div><div class="p-price">${settings.currency}${parseFloat(p.BasePrice).toFixed(2)}</div><div class="p-cat">${p.Category?.CategoryName || ''}</div>${low ? `<div class="p-stock-badge">Low: ${stock}</div>` : ''}`;
     d.onclick = () => addToCart(p);
     grid.appendChild(d);
   });
@@ -182,10 +326,20 @@ window.changeQty = function (id, delta) {
 window.removeFromCart = function (id) { cart = cart.filter(i => i.id !== id); renderCart(); };
 
 window.clearCart = function () {
-  cart = []; activePromo = null;
-  ['promoInput','orderNotes','cashReceived','promoInputM','orderNotesM','cashReceivedM'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-  ['promoMsg','promoMsgM'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ''; });
-  ['changeAmt','changeAmtM'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '₱0.00'; });
+  cart = [];
+  activePromo = null;
+  ['promoInput','orderNotes','cashReceived','promoInputM','orderNotesM','cashReceivedM'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  ['promoMsg','promoMsgM'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '';
+  });
+  ['changeAmt','changeAmtM'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '0.00';
+  });
   renderCart();
 };
 
@@ -204,67 +358,95 @@ function renderCart() {
   const total = cartTotal();
   const disc = discountAmount();
   const totalItems = cart.reduce((s, i) => s + i.quantity, 0);
+  const sym = settings.currency;
   const cartHTML = !cart.length
     ? '<div class="cart-empty">No items yet.<br>Tap a product to add.</div>'
     : cart.map(i => `
       <div class="cart-item">
-        <div style="flex:1"><div class="ci-name">${i.name}</div><div class="ci-sub">₱${i.price.toFixed(2)} each</div></div>
+        <div style="flex:1"><div class="ci-name">${i.name}</div><div class="ci-sub">${sym}${i.price.toFixed(2)} each</div></div>
         <div class="qty-ctrl">
           <button class="qty-btn" onclick="changeQty(${i.id},-1)">−</button>
           <span class="qty-val">${i.quantity}</span>
           <button class="qty-btn" onclick="changeQty(${i.id},1)">+</button>
         </div>
-        <div class="ci-total">₱${(i.price * i.quantity).toFixed(2)}</div>
+        <div class="ci-total">${sym}${(i.price * i.quantity).toFixed(2)}</div>
         <button class="ci-del" onclick="removeFromCart(${i.id})">×</button>
       </div>`).join('');
 
   ['cartItems','cartItemsMobile'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = cartHTML; });
   ['cartTotal','cartTotalM'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = total.toFixed(2); });
   ['discountLine','discountLineM'].forEach(id => {
-    const el = document.getElementById(id); if (!el) return;
-    if (activePromo && disc > 0) { el.style.display = 'block'; el.textContent = `− ₱${disc.toFixed(2)} (${activePromo.code})`; }
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (activePromo && disc > 0) { el.style.display = 'block'; el.textContent = `− ${sym}${disc.toFixed(2)} (${activePromo.code})`; }
     else el.style.display = 'none';
   });
-  const cc = document.getElementById('changeCalc'); if (cc) cc.style.display = selectedPayment === 'Cash' ? 'block' : 'none';
-  const ccm = document.getElementById('changeCalcM'); if (ccm) ccm.style.display = selectedPaymentM === 'Cash' ? 'block' : 'none';
-  calcChange(); calcChangeM();
+  const cc = document.getElementById('changeCalc');
+  if (cc) cc.style.display = selectedPayment === 'Cash' ? 'block' : 'none';
+  const ccm = document.getElementById('changeCalcM');
+  if (ccm) ccm.style.display = selectedPaymentM === 'Cash' ? 'block' : 'none';
+  calcChange();
+  calcChangeM();
   const fab = document.getElementById('cartFab');
   const fabCount = document.getElementById('cartFabCount');
   const fabTotal = document.getElementById('cartFabTotal');
   if (fab) fab.classList.toggle('has-items', totalItems > 0);
   if (fabCount) fabCount.textContent = totalItems;
-  if (fabTotal) fabTotal.textContent = '₱' + total.toFixed(2);
+  if (fabTotal) fabTotal.textContent = sym + total.toFixed(2);
 }
 
-window.setPayment = function (m, btn) { selectedPayment = m; document.querySelectorAll('.pay-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); renderCart(); };
-window.setPaymentM = function (m, btn) { selectedPaymentM = m; document.querySelectorAll('.pay-btn-m').forEach(b => b.classList.remove('active')); btn.classList.add('active'); renderCart(); };
-window.setOrderType = function (t, btn) { selectedOrderType = t; document.querySelectorAll('.cart-panel .otype-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); };
-window.setOrderTypeM = function (t, btn) { selectedOrderTypeM = t; document.querySelectorAll('.cart-drawer .otype-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); };
+window.setPayment = function (m, btn) {
+  selectedPayment = m;
+  document.querySelectorAll('.pay-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderCart();
+};
+window.setPaymentM = function (m, btn) {
+  selectedPaymentM = m;
+  document.querySelectorAll('.pay-btn-m').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderCart();
+};
+window.setOrderType = function (t, btn) {
+  selectedOrderType = t;
+  document.querySelectorAll('.cart-panel .otype-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+};
+window.setOrderTypeM = function (t, btn) {
+  selectedOrderTypeM = t;
+  document.querySelectorAll('.cart-drawer .otype-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+};
 
 window.calcChange = function () {
   const r = parseFloat(document.getElementById('cashReceived')?.value) || 0;
   const c = r - cartTotal();
   const el = document.getElementById('changeAmt');
-  if (el) { el.textContent = '₱' + Math.max(0, c).toFixed(2); el.style.color = c >= 0 ? 'var(--green)' : 'var(--red)'; }
+  if (el) { el.textContent = Math.max(0, c).toFixed(2); el.style.color = c >= 0 ? 'var(--green)' : 'var(--red)'; }
 };
 window.calcChangeM = function () {
   const r = parseFloat(document.getElementById('cashReceivedM')?.value) || 0;
   const c = r - cartTotal();
   const el = document.getElementById('changeAmtM');
-  if (el) { el.textContent = '₱' + Math.max(0, c).toFixed(2); el.style.color = c >= 0 ? 'var(--green)' : 'var(--red)'; }
+  if (el) { el.textContent = Math.max(0, c).toFixed(2); el.style.color = c >= 0 ? 'var(--green)' : 'var(--red)'; }
 };
 
 async function loadPromos() {
-  const { data } = await sb.from('promos').select('*');
+  const { data } = await sb.from('Promo').select('*').eq('IsActive', true).order('Code');
   allPromos = data || [];
 }
 
 function applyPromoCode(code, msgId) {
-  const promo = allPromos.find(p => p.code.toUpperCase() === code.toUpperCase());
+  const promo = allPromos.find(p => p.Code.toUpperCase() === code.toUpperCase());
   const msgEl = document.getElementById(msgId);
-  if (!promo) { if (msgEl) { msgEl.style.color = 'var(--red)'; msgEl.textContent = 'Invalid promo code.'; } activePromo = null; renderCart(); return; }
-  activePromo = promo;
-  if (msgEl) { msgEl.style.color = 'var(--green)'; msgEl.textContent = promo.type === 'percent' ? `✓ ${promo.value}% off!` : `✓ ₱${promo.value} off!`; }
+  if (!promo) {
+    if (msgEl) { msgEl.style.color = 'var(--red)'; msgEl.textContent = 'Invalid promo code.'; }
+    activePromo = null;
+    renderCart();
+    return;
+  }
+  activePromo = { code: promo.Code, type: promo.Type, value: parseFloat(promo.Value), id: promo.PromoID };
+  if (msgEl) { msgEl.style.color = 'var(--green)'; msgEl.textContent = promo.Type === 'percent' ? `✓ ${promo.Value}% off!` : `✓ ${settings.currency}${promo.Value} off!`; }
   renderCart();
 }
 
@@ -272,43 +454,52 @@ window.applyPromo = function () { applyPromoCode(document.getElementById('promoI
 window.applyPromoM = function () { applyPromoCode(document.getElementById('promoInputM').value.trim(), 'promoMsgM'); };
 
 window.savePromo = async function () {
-  const code = document.getElementById('promoCode').value.trim().toUpperCase();
-  const type = document.getElementById('promoType').value;
-  const value = parseFloat(document.getElementById('promoValue').value);
+  const Code = document.getElementById('promoCode').value.trim().toUpperCase();
+  const Type = document.getElementById('promoType').value;
+  const Value = parseFloat(document.getElementById('promoValue').value);
   const editId = document.getElementById('promoEditId').value;
-  if (!code || isNaN(value)) { showToast('Fill in all fields', 'error'); return; }
-  if (editId) await sb.from('promos').update({ code, type, value }).eq('id', editId);
-  else await sb.from('promos').insert([{ code, type, value }]);
-  showToast('Promo saved!', 'success'); cancelPromoEdit();
-  await loadPromos(); renderPromosTable();
+  if (!Code || isNaN(Value)) { showToast('Fill in all fields', 'error'); return; }
+  if (editId) await sb.from('Promo').update({ Code, Type, Value }).eq('PromoID', editId);
+  else await sb.from('Promo').insert([{ Code, Type, Value }]);
+  showToast('Promo saved!', 'success');
+  cancelPromoEdit();
+  await loadPromos();
+  renderPromosTable();
 };
+
 window.editPromo = function (id) {
-  const p = allPromos.find(x => x.id === id); if (!p) return;
-  document.getElementById('promoEditId').value = p.id;
-  document.getElementById('promoCode').value = p.code;
-  document.getElementById('promoType').value = p.type;
-  document.getElementById('promoValue').value = p.value;
+  const p = allPromos.find(x => x.PromoID === id);
+  if (!p) return;
+  document.getElementById('promoEditId').value = p.PromoID;
+  document.getElementById('promoCode').value = p.Code;
+  document.getElementById('promoType').value = p.Type;
+  document.getElementById('promoValue').value = p.Value;
   document.getElementById('promoFormTitle').textContent = 'Edit Promo';
 };
+
 window.deletePromo = async function (id) {
-  if (!confirm('Delete?')) return;
-  await sb.from('promos').delete().eq('id', id);
-  showToast('Deleted', 'success'); await loadPromos(); renderPromosTable();
+  if (!confirm('Delete this promo?')) return;
+  await sb.from('Promo').update({ IsActive: false }).eq('PromoID', id);
+  showToast('Deleted', 'success');
+  await loadPromos();
+  renderPromosTable();
 };
+
 window.cancelPromoEdit = function () {
   document.getElementById('promoEditId').value = '';
   document.getElementById('promoCode').value = '';
   document.getElementById('promoValue').value = '';
   document.getElementById('promoFormTitle').textContent = 'Add Promo Code';
 };
+
 function renderPromosTable() {
   const tbody = document.getElementById('promosTableBody');
   if (!allPromos.length) { tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-muted);text-align:center;padding:24px">No promos yet.</td></tr>'; return; }
   tbody.innerHTML = allPromos.map(p => `<tr>
-    <td><strong>${p.code}</strong></td>
-    <td><span class="badge">${p.type === 'percent' ? 'Percent' : 'Fixed'}</span></td>
-    <td>${p.type === 'percent' ? p.value + '%' : '₱' + parseFloat(p.value).toFixed(2)}</td>
-    <td><button class="btn-icon" onclick="editPromo('${p.id}')">✏️</button><button class="btn-icon" onclick="deletePromo('${p.id}')">🗑</button></td>
+    <td><strong>${p.Code}</strong></td>
+    <td><span class="badge">${p.Type === 'percent' ? 'Percent' : 'Fixed'}</span></td>
+    <td>${p.Type === 'percent' ? p.Value + '%' : settings.currency + parseFloat(p.Value).toFixed(2)}</td>
+    <td><button class="btn-icon" onclick="editPromo(${p.PromoID})">✏️</button><button class="btn-icon" onclick="deletePromo(${p.PromoID})">🗑</button></td>
   </tr>`).join('');
 }
 
@@ -324,8 +515,10 @@ window.saveStaff = async function () {
   const payload = { Name: name, Username: username, Password: password, Position: position || 'Cashier', AccessLevel: role, DateofBirth: dob };
   if (editId) await sb.from('Employee').update(payload).eq('EmployeeID', editId);
   else await sb.from('Employee').insert([payload]);
-  showToast('Staff saved!', 'success'); cancelStaffEdit();
-  await loadStaff(); renderStaffTable();
+  showToast('Staff saved!', 'success');
+  cancelStaffEdit();
+  await loadStaff();
+  renderStaffTable();
 };
 
 async function loadStaff() {
@@ -334,7 +527,8 @@ async function loadStaff() {
 }
 
 window.editStaff = function (id) {
-  const s = allStaff.find(x => x.EmployeeID === id); if (!s) return;
+  const s = allStaff.find(x => x.EmployeeID === id);
+  if (!s) return;
   document.getElementById('staffEditId').value = s.EmployeeID;
   document.getElementById('staffName').value = s.Name;
   document.getElementById('staffUser').value = s.Username || '';
@@ -349,11 +543,16 @@ window.deleteStaff = async function (id) {
   if (id === currentUser.EmployeeID) { showToast("Can't delete yourself!", 'error'); return; }
   if (!confirm('Delete this staff?')) return;
   await sb.from('Employee').delete().eq('EmployeeID', id);
-  showToast('Deleted', 'success'); await loadStaff(); renderStaffTable();
+  showToast('Deleted', 'success');
+  await loadStaff();
+  renderStaffTable();
 };
 
 window.cancelStaffEdit = function () {
-  ['staffEditId','staffName','staffUser','staffPass','staffPosition','staffDob'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['staffEditId','staffName','staffUser','staffPass','staffPosition','staffDob'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
   document.getElementById('staffFormTitle').textContent = 'Add Staff';
 };
 
@@ -361,7 +560,9 @@ function renderStaffTable() {
   const tbody = document.getElementById('staffTableBody');
   if (!allStaff.length) { tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-muted);text-align:center;padding:24px">No staff yet.</td></tr>'; return; }
   tbody.innerHTML = allStaff.map(s => `<tr>
-    <td>${s.Name}</td><td>${s.Username || '—'}</td><td>${s.Position}</td>
+    <td>${s.Name}</td>
+    <td>${s.Username || '—'}</td>
+    <td>${s.Position}</td>
     <td><span class="badge">${s.AccessLevel}</span></td>
     <td><button class="btn-icon" onclick="editStaff(${s.EmployeeID})">✏️</button><button class="btn-icon" onclick="deleteStaff(${s.EmployeeID})">🗑</button></td>
   </tr>`).join('');
@@ -375,16 +576,17 @@ window.openCheckoutModal = function (source) {
   const orderType = isMobile ? selectedOrderTypeM : selectedOrderType;
   const notes = document.getElementById(isMobile ? 'orderNotesM' : 'orderNotes').value.trim();
   const sub = cartSubtotal(), disc = discountAmount(), total = cartTotal();
+  const sym = settings.currency;
   const cash = parseFloat(document.getElementById(isMobile ? 'cashReceivedM' : 'cashReceived')?.value) || 0;
   const change = payment === 'Cash' ? Math.max(0, cash - total) : null;
   document.getElementById('modalBody').innerHTML =
     `<strong>Order #${orderCounter}</strong> · ${orderType}<br>` +
-    cart.map(i => `${i.name} × ${i.quantity} = ₱${(i.price * i.quantity).toFixed(2)}`).join('<br>') +
+    cart.map(i => `${i.name} × ${i.quantity} = ${sym}${(i.price * i.quantity).toFixed(2)}`).join('<br>') +
     `<hr style="border-color:#3d2b14;margin:10px 0;">` +
-    (disc > 0 ? `<span style="color:var(--text-muted)">Subtotal: ₱${sub.toFixed(2)}</span><br><span style="color:var(--green)">Discount: − ₱${disc.toFixed(2)}</span><br>` : '') +
-    `<strong>Total: ₱${total.toFixed(2)}</strong><br>Payment: ${payment}` +
+    (disc > 0 ? `<span style="color:var(--text-muted)">Subtotal: ${sym}${sub.toFixed(2)}</span><br><span style="color:var(--green)">Discount: − ${sym}${disc.toFixed(2)}</span><br>` : '') +
+    `<strong>Total: ${sym}${total.toFixed(2)}</strong><br>Payment: ${payment}` +
     (notes ? `<br>Notes: ${notes}` : '') +
-    (change !== null ? `<br>Change: <strong style="color:var(--green)">₱${change.toFixed(2)}</strong>` : '');
+    (change !== null ? `<br>Change: <strong style="color:var(--green)">${sym}${change.toFixed(2)}</strong>` : '');
   document.getElementById('checkoutModal').classList.add('open');
 };
 
@@ -411,17 +613,31 @@ window.checkout = async function () {
     DiscountAmount: disc,
   };
 
-  const offlinePayload = { ...orderData, items: cart.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity })), orderNum: orderCounter };
+  const offlinePayload = {
+    ...orderData,
+    items: cart.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity })),
+    orderNum: orderCounter
+  };
 
   if (!navigator.onLine) {
     saveOfflineOrder(offlinePayload);
     showToast(`Saved offline! Order #${orderCounter}`, 'success');
     showReceiptFromData(offlinePayload, null);
-    orderCounter++; clearCart(); closeMobileCart(); return;
+    orderCounter++;
+    clearCart();
+    closeMobileCart();
+    return;
   }
 
   const { data: orderRow, error } = await sb.from('Order').insert([orderData]).select().single();
-  if (error) { saveOfflineOrder(offlinePayload); showToast('Saved offline — will sync later', 'error'); orderCounter++; clearCart(); closeMobileCart(); return; }
+  if (error) {
+    saveOfflineOrder(offlinePayload);
+    showToast('Saved offline — will sync later', 'error');
+    orderCounter++;
+    clearCart();
+    closeMobileCart();
+    return;
+  }
 
   const details = cart.map(i => ({
     OrderID: orderRow.OrderID,
@@ -433,14 +649,18 @@ window.checkout = async function () {
   await sb.from('OrderDetails').insert(details);
 
   for (const i of cart) {
-    await sb.from('Inventory').upsert({ ProductID: i.id, QuantityAvailable: Math.max(0, (allProducts.find(p => p.ProductID === i.id)?.Inventory?.QuantityAvailable ?? 0) - i.quantity), LastUpdated: new Date().toISOString() }, { onConflict: 'ProductID' });
+    const { data: inv } = await sb.from('Inventory').select('QuantityAvailable').eq('ProductID', i.id).single();
+    const current = inv?.QuantityAvailable ?? 0;
+    await sb.from('Inventory').upsert({ ProductID: i.id, QuantityAvailable: Math.max(0, current - i.quantity), LastUpdated: new Date().toISOString() }, { onConflict: 'ProductID' });
   }
 
-  showToast(`Order #${orderCounter} placed! ₱${total.toFixed(2)}`, 'success');
+  showToast(`Order #${orderCounter} placed! ${settings.currency}${total.toFixed(2)}`, 'success');
   showReceiptFromData({ ...offlinePayload, OrderID: orderRow.OrderID }, orderRow.OrderID);
   orderCounter++;
-  await loadProducts(); renderProductGrid();
-  clearCart(); closeMobileCart();
+  await loadProducts();
+  renderProductGrid();
+  clearCart();
+  closeMobileCart();
 };
 
 function saveOfflineOrder(order) {
@@ -456,18 +676,39 @@ window.syncOfflineOrders = async function () {
   if (!navigator.onLine) { showToast('Still offline!', 'error'); return; }
   let synced = 0;
   for (const o of pending) {
-    const { data: orderRow, error } = await sb.from('Order').insert([{ EmployeeID: o.EmployeeID, OrderDateTime: o.saved_at, OrderType: o.OrderType, PaymentMethod: o.PaymentMethod, TotalAmount: o.TotalAmount, Status: 'Completed', Notes: o.Notes, DiscountCode: o.DiscountCode, DiscountAmount: o.DiscountAmount }]).select().single();
+    const { data: orderRow, error } = await sb.from('Order').insert([{
+      EmployeeID: o.EmployeeID,
+      OrderDateTime: o.saved_at,
+      OrderType: o.OrderType,
+      PaymentMethod: o.PaymentMethod,
+      TotalAmount: o.TotalAmount,
+      Status: 'Completed',
+      Notes: o.Notes,
+      DiscountCode: o.DiscountCode,
+      DiscountAmount: o.DiscountAmount
+    }]).select().single();
     if (!error && orderRow) {
-      await sb.from('OrderDetails').insert(o.items.map(i => ({ OrderID: orderRow.OrderID, ProductID: i.id, Quantity: i.quantity, Price: i.price, Subtotal: i.price * i.quantity })));
+      await sb.from('OrderDetails').insert(o.items.map(i => ({
+        OrderID: orderRow.OrderID,
+        ProductID: i.id,
+        Quantity: i.quantity,
+        Price: i.price,
+        Subtotal: i.price * i.quantity
+      })));
       synced++;
     }
   }
-  if (synced > 0) { localStorage.setItem('offline_orders', JSON.stringify(pending.slice(synced))); showToast(`Synced ${synced} order(s)!`, 'success'); updateOfflineBadge(); }
+  if (synced > 0) {
+    localStorage.setItem('offline_orders', JSON.stringify(pending.slice(synced)));
+    showToast(`Synced ${synced} order(s)!`, 'success');
+    updateOfflineBadge();
+  }
 };
 
 function updateOfflineBadge() {
   const pending = JSON.parse(localStorage.getItem('offline_orders') || '[]');
-  const el = document.getElementById('statOffline'); if (el) el.textContent = pending.length;
+  const el = document.getElementById('statOffline');
+  if (el) el.textContent = pending.length;
 }
 
 function showReceiptFromData(order, orderId) {
@@ -477,6 +718,7 @@ function showReceiptFromData(order, orderId) {
 
 function buildReceiptHTML(order, orderId) {
   const now = new Date();
+  const sym = settings.currency;
   const items = order.items || cart.map(i => ({ name: i.name, price: i.price, quantity: i.quantity }));
   const sub = items.reduce((s, i) => s + i.price * i.quantity, 0);
   return `<div style="font-family:monospace;font-size:13px;color:#1a1008;padding:8px;">
@@ -492,12 +734,12 @@ function buildReceiptHTML(order, orderId) {
     <hr style="border:1px dashed #ccc;margin:8px 0;">
     <table style="width:100%;border-collapse:collapse;">
       <thead><tr style="font-size:11px;color:#999;"><th style="text-align:left">Item</th><th style="text-align:center">Qty</th><th style="text-align:right">Amount</th></tr></thead>
-      <tbody>${items.map(i => `<tr><td>${i.name}</td><td style="text-align:center">${i.quantity}</td><td style="text-align:right">₱${(i.price * i.quantity).toFixed(2)}</td></tr>`).join('')}</tbody>
+      <tbody>${items.map(i => `<tr><td>${i.name}</td><td style="text-align:center">${i.quantity}</td><td style="text-align:right">${sym}${(i.price * i.quantity).toFixed(2)}</td></tr>`).join('')}</tbody>
     </table>
     <hr style="border:1px dashed #ccc;margin:8px 0;">
-    <div style="display:flex;justify-content:space-between;"><span>Subtotal</span><span>₱${sub.toFixed(2)}</span></div>
-    ${(order.DiscountAmount || 0) > 0 ? `<div style="display:flex;justify-content:space-between;color:green;"><span>Discount (${order.DiscountCode})</span><span>− ₱${parseFloat(order.DiscountAmount).toFixed(2)}</span></div>` : ''}
-    <div style="display:flex;justify-content:space-between;font-weight:bold;font-size:15px;margin-top:6px;"><span>TOTAL</span><span>₱${parseFloat(order.TotalAmount).toFixed(2)}</span></div>
+    <div style="display:flex;justify-content:space-between;"><span>Subtotal</span><span>${sym}${sub.toFixed(2)}</span></div>
+    ${(order.DiscountAmount || 0) > 0 ? `<div style="display:flex;justify-content:space-between;color:green;"><span>Discount (${order.DiscountCode})</span><span>− ${sym}${parseFloat(order.DiscountAmount).toFixed(2)}</span></div>` : ''}
+    <div style="display:flex;justify-content:space-between;font-weight:bold;font-size:15px;margin-top:6px;"><span>TOTAL</span><span>${sym}${parseFloat(order.TotalAmount).toFixed(2)}</span></div>
     <div style="display:flex;justify-content:space-between;font-size:12px;color:#555;margin-top:4px;"><span>Payment</span><span>${order.PaymentMethod}</span></div>
     ${order.Notes ? `<div style="margin-top:6px;font-size:11px;color:#555;"><em>Notes: ${order.Notes}</em></div>` : ''}
     <hr style="border:1px dashed #ccc;margin:8px 0;">
@@ -528,12 +770,17 @@ window.saveProduct = async function () {
     const { data: prod } = await sb.from('Product').insert([{ Name: name, BasePrice: price, CategoryID: catId, StockQuantity: stock, IsAvailable: available }]).select().single();
     if (prod) await sb.from('Inventory').insert([{ ProductID: prod.ProductID, QuantityAvailable: stock, LastUpdated: new Date().toISOString() }]);
   }
-  showToast('Item saved!', 'success'); cancelEdit();
-  await loadProducts(); renderCatFilters(); renderProductGrid(); renderProductsTable();
+  showToast('Item saved!', 'success');
+  cancelEdit();
+  await loadProducts();
+  renderCatFilters();
+  renderProductGrid();
+  renderProductsTable();
 };
 
 window.editProduct = function (id) {
-  const p = allProducts.find(x => x.ProductID === id); if (!p) return;
+  const p = allProducts.find(x => x.ProductID === id);
+  if (!p) return;
   document.getElementById('editId').value = p.ProductID;
   document.getElementById('pName').value = p.Name;
   document.getElementById('pPrice').value = p.BasePrice;
@@ -546,7 +793,11 @@ window.editProduct = function (id) {
 window.deleteProduct = async function (id) {
   if (!confirm('Delete this item?')) return;
   await sb.from('Product').delete().eq('ProductID', id);
-  showToast('Deleted', 'success'); await loadProducts(); renderCatFilters(); renderProductGrid(); renderProductsTable();
+  showToast('Deleted', 'success');
+  await loadProducts();
+  renderCatFilters();
+  renderProductGrid();
+  renderProductsTable();
 };
 
 window.cancelEdit = function () {
@@ -569,7 +820,7 @@ function renderProductsTable() {
     return `<tr>
       <td>${p.Name}</td>
       <td><span class="badge">${p.Category?.CategoryName || '—'}</span></td>
-      <td>₱${parseFloat(p.BasePrice).toFixed(2)}</td>
+      <td>${settings.currency}${parseFloat(p.BasePrice).toFixed(2)}</td>
       <td>${stock}</td>
       <td><span style="color:${statusColor};font-size:12px;font-weight:600;">${statusText}</span></td>
       <td><button class="btn-icon" onclick="editProduct(${p.ProductID})">✏️</button><button class="btn-icon" onclick="deleteProduct(${p.ProductID})">🗑</button></td>
@@ -585,9 +836,10 @@ window.loadReports = async function () {
   if (error) { showToast('Error loading orders', 'error'); return; }
   const total = (orders || []).reduce((s, o) => s + parseFloat(o.TotalAmount || 0), 0);
   const avg = orders?.length ? total / orders.length : 0;
+  const sym = settings.currency;
   document.getElementById('statOrders').textContent = orders?.length || 0;
-  document.getElementById('statRevenue').textContent = '₱' + total.toFixed(2);
-  document.getElementById('statAvg').textContent = '₱' + avg.toFixed(2);
+  document.getElementById('statRevenue').textContent = sym + total.toFixed(2);
+  document.getElementById('statAvg').textContent = sym + avg.toFixed(2);
   updateOfflineBadge();
   renderBestSellers(orders || []);
   const tbody = document.getElementById('ordersBody');
@@ -605,14 +857,17 @@ window.loadReports = async function () {
       <td class="order-items-list">${items || '—'}</td>
       <td class="order-items-list">${o.Notes || '—'}</td>
       <td><span style="color:${statusColor};font-size:12px;font-weight:600;">${o.Status}</span></td>
-      <td class="order-total">₱${parseFloat(o.TotalAmount).toFixed(2)}</td>
+      <td class="order-total">${sym}${parseFloat(o.TotalAmount).toFixed(2)}</td>
     </tr>`;
   }).join('');
 };
 
 function renderBestSellers(orders) {
   const counts = {};
-  orders.forEach(o => (o.OrderDetails || []).forEach(d => { const n = d.Product?.Name || '?'; counts[n] = (counts[n] || 0) + d.Quantity; }));
+  orders.forEach(o => (o.OrderDetails || []).forEach(d => {
+    const n = d.Product?.Name || '?';
+    counts[n] = (counts[n] || 0) + d.Quantity;
+  }));
   const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
   const max = sorted[0]?.[1] || 1;
   const container = document.getElementById('bestSellersChart');
@@ -630,17 +885,19 @@ window.clearDateFilter = function () { document.getElementById('filterDate').val
 window.exportToExcel = async function () {
   const { data: orders } = await sb.from('Order').select('*, Employee(Name), OrderDetails(Quantity, Price, Subtotal, Product(Name))').order('OrderDateTime', { ascending: false });
   if (!orders?.length) { showToast('No orders to export', 'error'); return; }
+  const sym = settings.currency;
   const rows = [['#', 'Date', 'Time', 'Staff', 'Type', 'Payment', 'Items', 'Notes', 'Discount', 'Status', 'Total']];
   orders.forEach((o, idx) => {
     const d = new Date(o.OrderDateTime);
     const items = (o.OrderDetails || []).map(i => `${i.Product?.Name} x${i.Quantity}`).join(' | ');
-    rows.push([idx + 1, d.toLocaleDateString(), d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), o.Employee?.Name || '', o.OrderType, o.PaymentMethod, items, o.Notes || '', o.DiscountCode || '', o.Status, o.TotalAmount]);
+    rows.push([idx + 1, d.toLocaleDateString(), d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), o.Employee?.Name || '', o.OrderType, o.PaymentMethod, items, o.Notes || '', o.DiscountCode || '', o.Status, sym + o.TotalAmount]);
   });
   const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
   a.download = `orders_${new Date().toISOString().split('T')[0]}.csv`;
-  a.click(); showToast('Exported!', 'success');
+  a.click();
+  showToast('Exported!', 'success');
 };
 
 window.loadInventory = async function () {
@@ -680,14 +937,27 @@ window.saveStock = async function () {
   if (isNaN(qty) || qty < 0) { showToast('Enter a valid quantity', 'error'); return; }
   await sb.from('Inventory').upsert({ ProductID: id, QuantityAvailable: qty, LastUpdated: new Date().toISOString() }, { onConflict: 'ProductID' });
   await sb.from('Product').update({ StockQuantity: qty }).eq('ProductID', id);
-  closeStockModal(); showToast('Stock updated!', 'success');
+  closeStockModal();
+  showToast('Stock updated!', 'success');
   await loadInventory();
 };
 
-window.openMobileCart = function () { document.getElementById('cartDrawer').classList.add('open'); document.getElementById('cartDrawerOverlay').classList.add('open'); };
-window.closeMobileCart = function () { document.getElementById('cartDrawer').classList.remove('open'); document.getElementById('cartDrawerOverlay').classList.remove('open'); };
-window.showMoreMenu = function () { document.getElementById('moreMenu').classList.add('open'); document.getElementById('moreMenuOverlay').classList.add('open'); };
-window.closeMoreMenu = function () { document.getElementById('moreMenu').classList.remove('open'); document.getElementById('moreMenuOverlay').classList.remove('open'); };
+window.openMobileCart = function () {
+  document.getElementById('cartDrawer').classList.add('open');
+  document.getElementById('cartDrawerOverlay').classList.add('open');
+};
+window.closeMobileCart = function () {
+  document.getElementById('cartDrawer').classList.remove('open');
+  document.getElementById('cartDrawerOverlay').classList.remove('open');
+};
+window.showMoreMenu = function () {
+  document.getElementById('moreMenu').classList.add('open');
+  document.getElementById('moreMenuOverlay').classList.add('open');
+};
+window.closeMoreMenu = function () {
+  document.getElementById('moreMenu').classList.remove('open');
+  document.getElementById('moreMenuOverlay').classList.remove('open');
+};
 
 window.showPage = function (name, btn) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -700,14 +970,15 @@ window.showPage = function (name, btn) {
   if (name === 'reports') loadReports();
   if (name === 'promos') renderPromosTable();
   if (name === 'staff') loadStaff().then(renderStaffTable);
-  if (name === 'settings') loadSettings();
+  if (name === 'settings') { loadSettings(); applyTheme(); }
   if (name === 'inventory') loadInventory();
 };
 
 let toastTimer;
 function showToast(msg, type = '') {
   const t = document.getElementById('toast');
-  t.textContent = msg; t.className = 'show ' + type;
+  t.textContent = msg;
+  t.className = 'show ' + type;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.className = '', 3000);
 }
