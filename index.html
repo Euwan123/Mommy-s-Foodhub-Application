@@ -597,7 +597,6 @@ tr:hover td { background: var(--surface2); }
       <button class="atab-btn" onclick="showAdminTab('menu',this)">🍽 Menu</button>
       <button class="atab-btn" onclick="showAdminTab('promos',this)">🏷 Promos</button>
       <button class="atab-btn" onclick="showAdminTab('staffmgmt',this)">👥 Staff Mgmt</button>
-      <button class="atab-btn" onclick="showAdminTab('settings',this)">⚙️ Settings</button>
     </div>
 
     <div id="atab-reports" class="page active" style="display:block;">
@@ -1030,15 +1029,15 @@ function launchApp(user) {
 
 function buildTopbarNav() {
   const nav = document.getElementById('topbarNav');
-  if (isAdmin()) {
-    nav.innerHTML = `
-      <button class="nav-btn active" id="navPOS" onclick="switchToPOS()">🧾 Cashier</button>
-      <button class="nav-btn" id="navAdmin" onclick="switchToAdmin()">⚙️ Admin Panel</button>`;
-  } else {
-    nav.innerHTML = `
-      <button class="nav-btn active" onclick="showTab('cashier',this)">🧾 Cashier</button>
-      <button class="nav-btn" onclick="showTab('kitchen',this)">🍳 Kitchen</button>`;
-  }
+  const admin = isAdmin();
+  nav.innerHTML = `
+    <button class="nav-btn active" id="navCashier" onclick="showTab('cashier',this)">🧾 Cashier</button>
+    <button class="nav-btn" id="navKitchen" onclick="showTab('kitchen',this)">🍳 Kitchen Board</button>
+    <button class="nav-btn" id="navIngredients" onclick="openAdminSection('inventory')">📦 Ingredients</button>
+    <button class="nav-btn" id="navPromosMain" onclick="openAdminSection('promos')">🏷 Promos</button>
+    <button class="nav-btn" id="navSettingsMain" onclick="openAdminSection('settings')">⚙️ Settings</button>
+    ${admin ? `<button class="nav-btn" id="navAdminPanel" onclick="openAdminSection('reports')">🛠 Admin Panel</button>` : ''}
+  `;
 }
 
 // ── VIEW SWITCHING ──────────────────────────────────────────────
@@ -1050,7 +1049,7 @@ window.switchToPOS = function() {
   document.getElementById('posBottomNav').style.display = '';
   document.getElementById('adminBottomNav').style.display = 'none';
   document.querySelectorAll('#topbarNav .nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('navPOS')?.classList.add('active');
+  document.getElementById('navCashier')?.classList.add('active');
 };
 
 window.switchToAdmin = function() {
@@ -1062,9 +1061,24 @@ window.switchToAdmin = function() {
   // show admin bottom nav on mobile
   document.getElementById('adminBottomNav').style.display = '';
   document.querySelectorAll('#topbarNav .nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('navAdmin')?.classList.add('active');
+  document.getElementById('navAdminPanel')?.classList.add('active');
   loadAdminData();
   loadReports();
+};
+
+window.openAdminSection = function(section) {
+  switchToAdmin();
+  if (section === 'settings') {
+    const tab = document.getElementById('atab-settings');
+    if (tab) {
+      document.querySelectorAll('#adminView .page').forEach(p => p.style.display = 'none');
+      tab.style.display = 'block';
+      loadSettingsForm();
+      applyTheme();
+    }
+  } else {
+    showAdminTab(section);
+  }
 };
 
 window.doLogout = function() {
@@ -1556,7 +1570,6 @@ window.showAdminTab = function(name, btn) {
   if (name === 'menu') { renderProductsTable(); renderSizesTable(); }
   if (name === 'promos') renderPromosTable();
   if (name === 'staffmgmt') renderStaffTable();
-  if (name === 'settings') { loadSettingsForm(); applyTheme(); }
 };
 
 // ── REPORTS ─────────────────────────────────────────────────────
@@ -1668,6 +1681,9 @@ window.loadInventory = async function() {
   const { data: ingRows } = await sb.from('Ingredients').select('*, Item(Name, UnitType), Product(Name)');
   const tbody = document.getElementById('ingMapBody');
   tbody.innerHTML = (ingRows||[]).map(r => `<tr><td>${r.Item?.Name||'—'}</td><td>${r.Product?.Name||'—'}</td><td>${r.UnitPerServing}</td><td>${r.Item?.UnitType||'—'}</td></tr>`).join('');
+  if (!isAdmin()) {
+    document.querySelectorAll('.inv-restock-btn').forEach(b => b.style.display = 'none');
+  }
 };
 window.openRestockModal = function(id, name, curr) { document.getElementById('restockItemId').value = id; document.getElementById('restockItemName').textContent = name + ' (current: ' + parseFloat(curr).toFixed(1) + ')'; document.getElementById('restockQty').value = curr; document.getElementById('restockModal').classList.add('open'); };
 window.closeRestockModal = function() { document.getElementById('restockModal').classList.remove('open'); };
@@ -1696,7 +1712,15 @@ window.savePromo = async function() { const Code = document.getElementById('prom
 window.editPromo = function(id) { const p = allAdminPromos.find(x => x.PromoID === id); if (!p) return; document.getElementById('promoEditId').value = p.PromoID; document.getElementById('promoCode').value = p.Code; document.getElementById('promoType').value = p.Type; document.getElementById('promoValue').value = p.Value; document.getElementById('promoFormTitle').textContent = 'Edit Promo'; };
 window.deletePromo = async function(id) { if (!confirm('Delete?')) return; await sb.from('Promo').update({ IsActive: false }).eq('PromoID', id); showToast('Deleted', 'success'); await loadAdminPromos(); renderPromosTable(); };
 window.cancelPromoEdit = function() { ['promoEditId','promoCode','promoValue'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; }); document.getElementById('promoType').value = 'percent'; document.getElementById('promoFormTitle').textContent = 'Add Promo'; };
-function renderPromosTable() { const tbody = document.getElementById('promosTableBody'); const s = sym(); tbody.innerHTML = allAdminPromos.map(p => `<tr><td><strong>${p.Code}</strong></td><td><span class="badge">${p.Type === 'percent' ? 'Percent' : 'Fixed'}</span></td><td>${p.Type === 'percent' ? p.Value + '%' : s + parseFloat(p.Value).toFixed(2)}</td><td><button class="btn-icon" onclick="editPromo(${p.PromoID})">✏️</button><button class="btn-icon" onclick="deletePromo(${p.PromoID})">🗑</button></td></tr>`).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">No promos.</td></tr>'; }
+function renderPromosTable() {
+  const tbody = document.getElementById('promosTableBody');
+  const s = sym();
+  if (!isAdmin()) {
+    tbody.innerHTML = allAdminPromos.map(p => `<tr><td><strong>${p.Code}</strong></td><td><span class="badge">${p.Type === 'percent' ? 'Percent' : 'Fixed'}</span></td><td>${p.Type === 'percent' ? p.Value + '%' : s + parseFloat(p.Value).toFixed(2)}</td></tr>`).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:20px;">No promos.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = allAdminPromos.map(p => `<tr><td><strong>${p.Code}</strong></td><td><span class="badge">${p.Type === 'percent' ? 'Percent' : 'Fixed'}</span></td><td>${p.Type === 'percent' ? p.Value + '%' : s + parseFloat(p.Value).toFixed(2)}</td><td><button class="btn-icon" onclick="editPromo(${p.PromoID})">✏️</button><button class="btn-icon" onclick="deletePromo(${p.PromoID})">🗑</button></td></tr>`).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">No promos.</td></tr>';
+}
 
 // ── STAFF MGMT ───────────────────────────────────────────────────
 window.saveStaff = async function() { const name = document.getElementById('staffName').value.trim(), username = document.getElementById('staffUser').value.trim(), password = document.getElementById('staffPass').value.trim(), position = document.getElementById('staffPosition').value.trim(), role = document.getElementById('staffRole').value, dob = document.getElementById('staffDob').value, editId = document.getElementById('staffEditId').value; if (!name || !username || !password) { showToast('Name, username and password required', 'error'); return; } const payload = { Name: name, Username: username, Password: password, Position: position || 'Cashier', AccessLevel: role, DateofBirth: dob || null }; if (editId) await sb.from('Employee').update(payload).eq('EmployeeID', editId); else await sb.from('Employee').insert([payload]); showToast('Staff saved!', 'success'); cancelStaffEdit(); await loadStaff(); renderStaffTable(); };
