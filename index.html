@@ -1056,13 +1056,17 @@ window.switchToAdmin = function() {
 window.goToCashier = function(btn) {
   adminPanelMode = false;
   switchToPOS();
-  showTab('cashier', btn);
+  document.querySelectorAll('#topbarNav .nav-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  showTab('cashier', null);
 };
 
 window.goToKitchen = function(btn) {
   adminPanelMode = false;
   switchToPOS();
-  showTab('kitchen', btn);
+  document.querySelectorAll('#topbarNav .nav-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  showTab('kitchen', null);
 };
 
 const canUseAdmin = () => isAdmin() || adminOverride;
@@ -1089,6 +1093,10 @@ window.openSectionView = function(section, btn) {
   const tabs = document.getElementById('adminTabs');
   if (tabs) tabs.style.display = 'none';
   document.querySelectorAll('#adminView .page').forEach(p => p.style.display = 'none');
+  if (btn) {
+    document.querySelectorAll('#topbarNav .nav-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
   if (section === 'settings') {
     const tab = document.getElementById('atab-settings');
     if (tab) {
@@ -1103,10 +1111,6 @@ window.openSectionView = function(section, btn) {
     tab.style.display = 'block';
     if (section === 'inventory') loadInventory();
     if (section === 'promos') renderPromosTable();
-  }
-  if (btn) {
-    document.querySelectorAll('#topbarNav .nav-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
   }
 }
 
@@ -1557,10 +1561,9 @@ window.updateOrderStatus = async function(orderId, status) { await sb.from('Orde
 // ── TABS ────────────────────────────────────────────────────────
 window.showTab = function(name, btn) {
   document.querySelectorAll('#posView .tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.nav-btn, .bnav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name)?.classList.add('active');
+  document.querySelectorAll('.bnav-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  document.querySelectorAll(`[onclick*="showTab('${name}"]`).forEach(b => b.classList.add('active'));
   closeMobileCart();
   if (name === 'kitchen') loadKitchen();
 };
