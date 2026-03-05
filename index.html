@@ -168,6 +168,7 @@ tr:hover td { background: var(--surface2); }
 .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; overflow-y: auto; padding-right: 4px; }
 .product-grid::-webkit-scrollbar { width: 4px; }
 .product-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.group-header { grid-column: 1/-1; font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .08em; margin: 12px 4px 4px; }
 .product-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px 12px; text-align: center; cursor: pointer; transition: all .18s; position: relative; user-select: none; }
 .product-card:hover { border-color: var(--amber); transform: translateY(-2px); box-shadow: 0 4px 16px #00000044; }
 .product-card:active { transform: scale(.97); }
@@ -213,7 +214,7 @@ tr:hover td { background: var(--surface2); }
 .change-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .change-row:last-child { margin-bottom: 0; }
 .change-row label { font-size: 12px; color: var(--text-muted); }
-.change-row input { width: 120px; padding: 6px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px; text-align: right; outline: none; -webkit-text-fill-color: var(--text); }
+.change-row input { width: 100%; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 15px; text-align: right; outline: none; -webkit-text-fill-color: var(--text); }
 .change-row input:focus { border-color: var(--amber); }
 .change-amt { font-size: 16px; font-weight: 700; color: var(--green); }
 .size-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
@@ -383,8 +384,8 @@ tr:hover td { background: var(--surface2); }
   <div class="login-box">
     <div class="logo">🍛 Mommy's FoodHub</div>
     <div class="sub">Staff Login</div>
-    <input type="text" id="loginUser" placeholder="Username" autocomplete="username">
-    <input type="password" id="loginPass" placeholder="Password" autocomplete="current-password">
+    <input type="text" id="loginUser" placeholder="Username" autocomplete="off">
+    <input type="password" id="loginPass" placeholder="Password" autocomplete="off">
     <button class="btn-login" onclick="doLogin()">Sign In</button>
     <div id="loginError"></div>
   </div>
@@ -470,8 +471,14 @@ tr:hover td { background: var(--surface2); }
               <div>
                 <div class="cart-total-label">Total</div>
                 <div id="discountLine" style="display:none;font-size:12px;color:var(--green);"></div>
+                <div id="feeLine" style="display:none;font-size:12px;color:var(--text-muted);"></div>
               </div>
               <div class="cart-total-amt"><span class="curr-sym">₱</span><span id="cartTotal">0.00</span></div>
+            </div>
+            <div class="form-group" id="deliveryFields" style="display:none;">
+              <label>Delivery Details</label>
+              <input type="text" class="field-input" id="deliveryPlatform" placeholder="Platform (e.g. Foodpanda, Grab)" style="text-transform:none;margin-bottom:6px;">
+              <input type="text" class="field-input" id="deliveryRider" placeholder="Driver name / number / ID" style="text-transform:none;">
             </div>
             <div class="change-calc" id="changeCalc" style="display:none;">
               <div class="change-row">
@@ -544,8 +551,14 @@ tr:hover td { background: var(--surface2); }
           <div>
             <div class="cart-total-label">Total</div>
             <div id="discountLineM" style="display:none;font-size:12px;color:var(--green);"></div>
+            <div id="feeLineM" style="display:none;font-size:12px;color:var(--text-muted);"></div>
           </div>
           <div class="cart-total-amt"><span class="curr-sym">₱</span><span id="cartTotalM">0.00</span></div>
+        </div>
+        <div class="form-group" id="deliveryFieldsM" style="display:none;">
+          <label>Delivery Details</label>
+          <input type="text" class="field-input" id="deliveryPlatformM" placeholder="Platform (e.g. Foodpanda, Grab)" style="text-transform:none;margin-bottom:6px;">
+          <input type="text" class="field-input" id="deliveryRiderM" placeholder="Driver name / number / ID" style="text-transform:none;">
         </div>
         <div class="change-calc" id="changeCalcM" style="display:none;">
           <div class="change-row">
@@ -821,9 +834,9 @@ tr:hover td { background: var(--surface2); }
         </div>
         <div class="form-card">
           <div class="form-title">🔑 Change Password</div>
-          <div class="form-group"><label>Current Password</label><input type="password" id="curPass" autocomplete="current-password"></div>
-          <div class="form-group"><label>New Password</label><input type="password" id="newPass" autocomplete="new-password"></div>
-          <div class="form-group"><label>Confirm New Password</label><input type="password" id="confirmPass" autocomplete="new-password"></div>
+          <div class="form-group"><label>Current Password</label><input type="password" id="curPass" autocomplete="off"></div>
+          <div class="form-group"><label>New Password</label><input type="password" id="newPass" autocomplete="off"></div>
+          <div class="form-group"><label>Confirm New Password</label><input type="password" id="confirmPass" autocomplete="off"></div>
           <button class="btn-primary" onclick="changePassword()">Update Password</button>
         </div>
         <div class="form-card">
@@ -966,6 +979,18 @@ let kitchenFilter = 'all', kitchenOrders = [];
 const S = () => JSON.parse(localStorage.getItem('pos_settings') || '{}');
 const sym = () => S().currency || '₱';
 const isAdmin = () => currentUser && (currentUser.AccessLevel === 'Admin' || currentUser.AccessLevel === 'Manager');
+const groupOrder = [
+  { key: 'viand', label: 'Viand/Main dishes', keywords: ['viand', 'main'] },
+  { key: 'side', label: 'Side dishes', keywords: ['side'] },
+  { key: 'drinks', label: 'Drinks', keywords: ['drink', 'beverage'] },
+  { key: 'desserts', label: 'Desserts', keywords: ['dessert', 'sweet'] },
+  { key: 'breakfast', label: 'Breakfast', keywords: ['breakfast'] },
+  { key: 'combo', label: 'Combo meals', keywords: ['combo'] },
+  { key: 'kids', label: 'Kids meals', keywords: ['kid'] },
+  { key: 'vegetarian', label: 'Vegetarian', keywords: ['veg', 'vegetarian'] },
+  { key: 'specials', label: 'Specials', keywords: ['special'] },
+  { key: 'others', label: 'Others', keywords: [] }
+];
 
 // ── LOGIN ───────────────────────────────────────────────────────
 window.doLogin = async function() {
@@ -1154,6 +1179,30 @@ async function loadPromos() { const { data } = await sb.from('Promo').select('*'
 
 window.filterProducts = function() { renderProductGrid(); };
 
+function gcashFee(base) {
+  if (!base || base <= 0) return 0;
+  const fee = Math.floor(base / 50) * 2;
+  return Math.min(40, fee);
+}
+
+function cartTotalWithFees(payment) {
+  const base = cartTotal();
+  if (payment === 'GCash') return base + gcashFee(base);
+  return base;
+}
+
+function getGroupLabel(catName) {
+  const lower = (catName || '').toLowerCase();
+  for (const g of groupOrder) {
+    if (g.key === 'others') continue;
+    if (g.keywords.some(k => lower.includes(k))) return g.label;
+  }
+  if (!lower) return 'Others';
+  const direct = groupOrder.find(g => g.label.toLowerCase() === lower);
+  if (direct) return direct.label;
+  return 'Others';
+}
+
 function renderCatFilters() {
   const wrap = document.getElementById('catFilters');
   wrap.innerHTML = '';
@@ -1169,18 +1218,42 @@ function renderCatFilters() {
 function renderProductGrid() {
   const q = (document.getElementById('menuSearch')?.value || '').toLowerCase();
   const grid = document.getElementById('productGrid');
-  const filtered = allProducts.filter(p => (selectedCategory === 'All' || (p.Category?.CategoryName || '') === selectedCategory) && (!q || p.Name.toLowerCase().includes(q)));
+  const filtered = allProducts.filter(p => {
+    if (!(selectedCategory === 'All' || (p.Category?.CategoryName || '') === selectedCategory)) return false;
+    if (!q) return true;
+    const haystack = [
+      p.Name || '',
+      p.Category?.CategoryName || '',
+      getGroupLabel(p.Category?.CategoryName || '')
+    ].join(' ').toLowerCase();
+    return q.split(/\s+/).filter(Boolean).every(w => haystack.includes(w));
+  });
   if (!filtered.length) { grid.innerHTML = '<div class="no-products">No items found.</div>'; return; }
   grid.innerHTML = '';
+  const groups = {};
   filtered.forEach(p => {
-    const stock = p.Inventory?.QuantityAvailable ?? p.StockQuantity ?? 99;
-    const sizes = allSizes.filter(s => s.ProductID === p.ProductID);
-    const low = stock > 0 && stock <= 5, out = stock === 0;
-    const d = document.createElement('div');
-    d.className = 'product-card' + (low ? ' low-stock' : '') + (out ? ' out-stock' : '');
-    d.innerHTML = `<div class="p-name">${p.Name}</div><div class="p-price">${sym()}${parseFloat(p.BasePrice).toFixed(2)}</div><div class="p-cat">${p.Category?.CategoryName || ''}</div>${sizes.length ? `<div class="p-size-hint">+ ${sizes.length} sizes</div>` : ''}${low ? `<div class="p-stock-badge">Low: ${stock}</div>` : ''}${out ? `<div class="p-stock-badge" style="color:var(--red)">Out of stock</div>` : ''}`;
-    d.onclick = () => sizes.length ? openSizeModal(p) : addToCart(p, null, null);
-    grid.appendChild(d);
+    const label = getGroupLabel(p.Category?.CategoryName || '');
+    if (!groups[label]) groups[label] = [];
+    groups[label].push(p);
+  });
+  const orderedGroups = groupOrder.map(g => g.label).filter(l => groups[l]?.length);
+  const otherGroups = Object.keys(groups).filter(l => !orderedGroups.includes(l));
+  const finalOrder = [...orderedGroups, ...otherGroups];
+  finalOrder.forEach(label => {
+    const header = document.createElement('div');
+    header.className = 'group-header';
+    header.textContent = label;
+    grid.appendChild(header);
+    groups[label].forEach(p => {
+      const stock = p.Inventory?.QuantityAvailable ?? p.StockQuantity ?? 99;
+      const sizes = allSizes.filter(s => s.ProductID === p.ProductID);
+      const low = stock > 0 && stock <= 5, out = stock === 0;
+      const d = document.createElement('div');
+      d.className = 'product-card' + (low ? ' low-stock' : '') + (out ? ' out-stock' : '');
+      d.innerHTML = `<div class="p-name">${p.Name}</div><div class="p-price">${sym()}${parseFloat(p.BasePrice).toFixed(2)}</div><div class="p-cat">${p.Category?.CategoryName || ''}</div>${sizes.length ? `<div class="p-size-hint">+ ${sizes.length} sizes</div>` : ''}${low ? `<div class="p-stock-badge">Low: ${stock}</div>` : ''}${out ? `<div class="p-stock-badge" style="color:var(--red)">Out of stock</div>` : ''}`;
+      d.onclick = () => sizes.length ? openSizeModal(p) : addToCart(p, null, null);
+      grid.appendChild(d);
+    });
   });
 }
 
@@ -1209,14 +1282,14 @@ function addToCart(p, sizeLabel, sizePrice) {
   const key = p.ProductID + (sizeLabel || '');
   const ex = cart.find(i => i.key === key);
   if (ex) ex.quantity++;
-  else cart.push({ key, id: p.ProductID, name: p.Name, size: sizeLabel, price, quantity: 1 });
+  else cart.push({ key, id: p.ProductID, name: p.Name, size: sizeLabel, price, quantity: 1, mods: [] });
   renderCart();
 }
 window.changeQty = function(key, delta) { const item = cart.find(i => i.key === key); if (!item) return; item.quantity += delta; if (item.quantity <= 0) cart = cart.filter(i => i.key !== key); renderCart(); };
 window.removeFromCart = function(key) { cart = cart.filter(i => i.key !== key); renderCart(); };
 window.clearCart = function() {
   cart = []; activePromo = null;
-  ['promoInput','orderNotes','cashReceived','promoInputM','orderNotesM','cashReceivedM'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+  ['promoInput','orderNotes','cashReceived','deliveryPlatform','deliveryRider','promoInputM','orderNotesM','cashReceivedM','deliveryPlatformM','deliveryRiderM'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
   ['promoMsg','promoMsgM'].forEach(id => { const e = document.getElementById(id); if (e) e.textContent = ''; });
   renderCart();
 };
@@ -1229,28 +1302,88 @@ function cartTotal() {
 const discountAmt = () => cartSubtotal() - cartTotal();
 
 function renderCart() {
-  const total = cartTotal(), disc = discountAmt(), s = sym();
+  const baseTotal = cartTotal(), disc = discountAmt(), s = sym();
   const count = cart.reduce((n, i) => n + i.quantity, 0);
   const html = !cart.length ? '<div class="cart-empty">No items yet.<br>Tap a dish to add.</div>'
-    : cart.map(i => `<div class="cart-item"><div style="flex:1"><div class="ci-name">${i.name}</div>${i.size ? `<div class="ci-size">${i.size}</div>` : ''}<div class="ci-sub">${s}${i.price.toFixed(2)} each</div></div><div class="qty-ctrl"><button class="qty-btn" onclick="changeQty('${i.key}',-1)">−</button><span class="qty-val">${i.quantity}</span><button class="qty-btn" onclick="changeQty('${i.key}',1)">+</button></div><div class="ci-total">${s}${(i.price * i.quantity).toFixed(2)}</div><button class="ci-del" onclick="removeFromCart('${i.key}')">×</button></div>`).join('');
+    : cart.map(i => `<div class="cart-item"><div style="flex:1"><div class="ci-name">${i.name}</div>${i.size ? `<div class="ci-size">${i.size}</div>` : ''}<div class="ci-sub">${s}${i.price.toFixed(2)} each</div>${formatModifiers(i)}</div><div class="qty-ctrl"><button class="qty-btn" onclick="changeQty('${i.key}',-1)">−</button><span class="qty-val">${i.quantity}</span><button class="qty-btn" onclick="changeQty('${i.key}',1)">+</button></div><div class="ci-total">${s}${(i.price * i.quantity).toFixed(2)}</div><button class="ci-del" onclick="removeFromCart('${i.key}')">×</button><button class="qty-btn" onclick="editModifiers('${i.key}')" style="margin-left:4px;">⚙</button></div>`).join('');
   ['cartItems','cartItemsMobile'].forEach(id => { const e = document.getElementById(id); if (e) e.innerHTML = html; });
-  ['cartTotal','cartTotalM'].forEach(id => { const e = document.getElementById(id); if (e) e.textContent = total.toFixed(2); });
+  const fee = gcashFee(baseTotal);
+  const totalDesktop = selectedPayment === 'GCash' ? baseTotal + fee : baseTotal;
+  const totalMobile = selectedPaymentM === 'GCash' ? baseTotal + fee : baseTotal;
+  const cartTotalEl = document.getElementById('cartTotal');
+  if (cartTotalEl) cartTotalEl.textContent = totalDesktop.toFixed(2);
+  const cartTotalMEl = document.getElementById('cartTotalM');
+  if (cartTotalMEl) cartTotalMEl.textContent = totalMobile.toFixed(2);
   ['discountLine','discountLineM'].forEach(id => { const e = document.getElementById(id); if (!e) return; if (activePromo && disc > 0) { e.style.display = 'block'; e.textContent = `− ${s}${disc.toFixed(2)} (${activePromo.code})`; } else e.style.display = 'none'; });
+  ['feeLine','feeLineM'].forEach((id, idx) => {
+    const e = document.getElementById(id);
+    if (!e) return;
+    const pay = idx === 0 ? selectedPayment : selectedPaymentM;
+    if (pay === 'GCash' && fee > 0) {
+      e.style.display = 'block';
+      e.textContent = `GCash fee: + ${s}${fee.toFixed(2)}`;
+    } else e.style.display = 'none';
+  });
   const cc = document.getElementById('changeCalc'); if (cc) cc.style.display = selectedPayment === 'Cash' ? 'block' : 'none';
   const ccm = document.getElementById('changeCalcM'); if (ccm) ccm.style.display = selectedPaymentM === 'Cash' ? 'block' : 'none';
   calcChange(); calcChangeM();
   const fab = document.getElementById('cartFab');
-  if (fab) { fab.classList.toggle('has-items', count > 0); document.getElementById('cartFabCount').textContent = count; document.getElementById('cartFabTotal').textContent = s + total.toFixed(2); }
+  if (fab) { fab.classList.toggle('has-items', count > 0); document.getElementById('cartFabCount').textContent = count; document.getElementById('cartFabTotal').textContent = s + totalDesktop.toFixed(2); }
   document.querySelectorAll('.curr-sym').forEach(e => e.textContent = s);
   document.querySelectorAll('.curr-sym-inline').forEach(e => e.textContent = s);
 }
 
+function formatModifiers(item) {
+  if (!item.mods || !item.mods.length) return '';
+  const parts = item.mods.map(m => `${m.delta > 0 ? '+' : ''}${m.delta} ${m.label}`);
+  return `<div class="ci-sub" style="font-size:11px;color:var(--text-muted);">${parts.join(' | ')}</div>`;
+}
+
+window.editModifiers = function(key) {
+  const item = cart.find(i => i.key === key);
+  if (!item) return;
+  const label = prompt('Describe change (e.g. extra chili, no onions):');
+  if (!label) return;
+  const deltaStr = prompt('Enter +1 for extra portion or -1 for removed portion (affects inventory):', '+1');
+  const delta = parseInt(deltaStr, 10);
+  if (!delta || isNaN(delta)) return;
+  if (!item.mods) item.mods = [];
+  item.mods.push({ label, delta });
+  renderCart();
+};
+
 window.setPayment = function(m, btn) { selectedPayment = m; document.querySelectorAll('.pay-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); renderCart(); };
 window.setPaymentM = function(m, btn) { selectedPaymentM = m; document.querySelectorAll('.pay-btn-m').forEach(b => b.classList.remove('active')); btn.classList.add('active'); renderCart(); };
-window.setOrderType = function(t, btn) { selectedOrderType = t; document.querySelectorAll('.cart-panel .otype-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); };
-window.setOrderTypeM = function(t, btn) { selectedOrderTypeM = t; document.querySelectorAll('.cart-drawer .otype-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); };
-window.calcChange = function() { const r = parseFloat(document.getElementById('cashReceived')?.value) || 0; const c = r - cartTotal(); const el = document.getElementById('changeAmt'); if (el) { el.textContent = Math.max(0, c).toFixed(2); el.style.color = c >= 0 ? 'var(--green)' : 'var(--red)'; } };
-window.calcChangeM = function() { const r = parseFloat(document.getElementById('cashReceivedM')?.value) || 0; const c = r - cartTotal(); const el = document.getElementById('changeAmtM'); if (el) { el.textContent = Math.max(0, c).toFixed(2); el.style.color = c >= 0 ? 'var(--green)' : 'var(--red)'; } };
+window.setOrderType = function(t, btn) {
+  selectedOrderType = t;
+  document.querySelectorAll('.cart-panel .otype-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const show = t === 'Delivery';
+  const wrap = document.getElementById('deliveryFields');
+  if (wrap) wrap.style.display = show ? 'block' : 'none';
+};
+window.setOrderTypeM = function(t, btn) {
+  selectedOrderTypeM = t;
+  document.querySelectorAll('.cart-drawer .otype-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const show = t === 'Delivery';
+  const wrap = document.getElementById('deliveryFieldsM');
+  if (wrap) wrap.style.display = show ? 'block' : 'none';
+};
+window.calcChange = function() {
+  const r = parseFloat(document.getElementById('cashReceived')?.value) || 0;
+  const total = cartTotalWithFees(selectedPayment);
+  const c = r - total;
+  const el = document.getElementById('changeAmt');
+  if (el) { el.textContent = Math.max(0, c).toFixed(2); el.style.color = c >= 0 ? 'var(--green)' : 'var(--red)'; }
+};
+window.calcChangeM = function() {
+  const r = parseFloat(document.getElementById('cashReceivedM')?.value) || 0;
+  const total = cartTotalWithFees(selectedPaymentM);
+  const c = r - total;
+  const el = document.getElementById('changeAmtM');
+  if (el) { el.textContent = Math.max(0, c).toFixed(2); el.style.color = c >= 0 ? 'var(--green)' : 'var(--red)'; }
+};
 
 function applyPromoCode(code, msgId) {
   const promo = allPromos.find(p => p.Code.toUpperCase() === code.toUpperCase());
@@ -1270,10 +1403,14 @@ window.openCheckoutModal = function(source) {
   const payment = isMobile ? selectedPaymentM : selectedPayment;
   const orderType = isMobile ? selectedOrderTypeM : selectedOrderType;
   const notes = document.getElementById(isMobile ? 'orderNotesM' : 'orderNotes').value.trim();
-  const sub = cartSubtotal(), disc = discountAmt(), total = cartTotal(), s = sym();
+  const sub = cartSubtotal(), disc = discountAmt(), s = sym();
+  const baseTotal = cartTotal();
+  const fee = payment === 'GCash' ? gcashFee(baseTotal) : 0;
+  const total = baseTotal + fee;
   const cash = parseFloat(document.getElementById(isMobile ? 'cashReceivedM' : 'cashReceived')?.value) || 0;
   const change = payment === 'Cash' ? Math.max(0, cash - total) : null;
-  document.getElementById('modalBody').innerHTML = `<strong>Order #${orderCounter}</strong> · ${orderType}<br>` + cart.map(i => `${i.name}${i.size ? ` (${i.size})` : ''} × ${i.quantity} = ${s}${(i.price * i.quantity).toFixed(2)}`).join('<br>') + `<hr style="border-color:#3d2b14;margin:10px 0;">` + (disc > 0 ? `<span style="color:var(--text-muted)">Subtotal: ${s}${sub.toFixed(2)}</span><br><span style="color:var(--green)">Discount: − ${s}${disc.toFixed(2)}</span><br>` : '') + `<strong>Total: ${s}${total.toFixed(2)}</strong><br>Payment: ${payment}` + (notes ? `<br>Notes: ${notes}` : '') + (change !== null ? `<br>Change: <strong style="color:var(--green)">${s}${change.toFixed(2)}</strong>` : '');
+  const feeLine = fee > 0 ? `<span style="color:var(--text-muted)">GCash fee: + ${s}${fee.toFixed(2)}</span><br>` : '';
+  document.getElementById('modalBody').innerHTML = `<strong>Order #${orderCounter}</strong> · ${orderType}<br>` + cart.map(i => `${i.name}${i.size ? ` (${i.size})` : ''} × ${i.quantity} = ${s}${(i.price * i.quantity).toFixed(2)}`).join('<br>') + `<hr style="border-color:#3d2b14;margin:10px 0;">` + (disc > 0 ? `<span style="color:var(--text-muted)">Subtotal: ${s}${sub.toFixed(2)}</span><br><span style="color:var(--green)">Discount: − ${s}${disc.toFixed(2)}</span><br>` : `<span style="color:var(--text-muted)">Subtotal: ${s}${sub.toFixed(2)}</span><br>`) + feeLine + `<strong>Total: ${s}${total.toFixed(2)}</strong><br>Payment: ${payment}` + (notes ? `<br>Notes: ${notes}` : '') + (change !== null ? `<br>Change: <strong style="color:var(--green)">${s}${change.toFixed(2)}</strong>` : '');
   document.getElementById('checkoutModal').classList.add('open');
 };
 window.closeModal = function() { document.getElementById('checkoutModal').classList.remove('open'); };
@@ -1283,10 +1420,25 @@ window.checkout = async function() {
   const isMobile = checkoutSource === 'mobile';
   const payment = isMobile ? selectedPaymentM : selectedPayment;
   const orderType = isMobile ? selectedOrderTypeM : selectedOrderType;
-  const notes = document.getElementById(isMobile ? 'orderNotesM' : 'orderNotes').value.trim();
-  const total = cartTotal(), disc = discountAmt();
+  const notesBase = document.getElementById(isMobile ? 'orderNotesM' : 'orderNotes').value.trim();
+  const platform = document.getElementById(isMobile ? 'deliveryPlatformM' : 'deliveryPlatform')?.value.trim() || '';
+  const rider = document.getElementById(isMobile ? 'deliveryRiderM' : 'deliveryRider')?.value.trim() || '';
+  let notes = notesBase;
+  if (orderType === 'Delivery') {
+    const parts = [];
+    if (platform) parts.push('Platform: ' + platform);
+    if (rider) parts.push('Rider: ' + rider);
+    if (parts.length) {
+      const extra = 'Delivery Info — ' + parts.join(' | ');
+      notes = notes ? notes + ' | ' + extra : extra;
+    }
+  }
+  const disc = discountAmt();
+  const baseTotal = cartTotal();
+  const fee = payment === 'GCash' ? gcashFee(baseTotal) : 0;
+  const total = baseTotal + fee;
   const cartSnapshot = [...cart.map(i => ({ ...i }))];
-  const orderData = { EmployeeID: currentUser.EmployeeID, OrderDateTime: new Date().toISOString(), OrderType: orderType, PaymentMethod: payment, TotalAmount: total, Status: 'Pending', Notes: notes || null, DiscountCode: activePromo?.code || null, DiscountAmount: disc };
+  const orderData = { EmployeeID: currentUser.EmployeeID, OrderDateTime: new Date().toISOString(), OrderType: orderType, PaymentMethod: payment, TotalAmount: total, Status: 'Pending', Notes: notes || null, DiscountCode: activePromo?.code || null, DiscountAmount: disc, GCashFee: fee };
   if (!navigator.onLine) { saveOfflineOrder({ ...orderData, items: cartSnapshot, orderNum: orderCounter }); showToast(`Saved offline! Order #${orderCounter}`, 'success'); showReceiptFromData({ ...orderData, items: cartSnapshot, orderNum: orderCounter }, null); orderCounter++; clearCart(); closeMobileCart(); return; }
   const { data: orderRow, error } = await sb.from('Order').insert([orderData]).select().single();
   if (error) { saveOfflineOrder({ ...orderData, items: cartSnapshot, orderNum: orderCounter }); showToast('Saved offline — will sync later', 'error'); orderCounter++; clearCart(); closeMobileCart(); return; }
@@ -1324,7 +1476,13 @@ function updateOfflineBadge() { const pending = JSON.parse(localStorage.getItem(
 function showReceiptFromData(order, orderId) {
   const settings = S(), s = sym(), now = new Date(), items = order.items || [];
   const sub = items.reduce((n, i) => n + i.price * i.quantity, 0);
-  document.getElementById('receiptContent').innerHTML = `<div style="font-family:monospace;font-size:13px;color:#1a1008;padding:8px;"><div style="text-align:center;margin-bottom:12px;"><div style="font-size:17px;font-weight:bold;">${settings.name || "Mommy's FoodHub"}</div>${settings.address ? `<div style="font-size:11px;color:#666;">${settings.address}</div>` : ''}${settings.contact ? `<div style="font-size:11px;color:#666;">${settings.contact}</div>` : ''}<div style="font-size:11px;color:#666;">${now.toLocaleDateString()} ${now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div><div style="font-size:11px;color:#666;">Cashier: ${currentUser?.Name || '—'} | Order #${order.orderNum || orderId || '—'}</div><div style="font-size:11px;color:#666;">${order.OrderType}</div>${!orderId ? '<div style="font-size:11px;color:#e66;">⚠ Offline Order</div>' : ''}</div><hr style="border:1px dashed #ccc;margin:8px 0;"><table style="width:100%;border-collapse:collapse;"><thead><tr style="font-size:11px;color:#999;"><th style="text-align:left">Item</th><th style="text-align:center">Qty</th><th style="text-align:right">Amt</th></tr></thead><tbody>${items.map(i => `<tr><td>${i.name}${i.size ? ` (${i.size})` : ''}</td><td style="text-align:center">${i.quantity}</td><td style="text-align:right">${s}${(i.price*i.quantity).toFixed(2)}</td></tr>`).join('')}</tbody></table><hr style="border:1px dashed #ccc;margin:8px 0;"><div style="display:flex;justify-content:space-between;"><span>Subtotal</span><span>${s}${sub.toFixed(2)}</span></div>${(order.DiscountAmount||0)>0 ? `<div style="display:flex;justify-content:space-between;color:green;"><span>Discount (${order.DiscountCode})</span><span>− ${s}${parseFloat(order.DiscountAmount).toFixed(2)}</span></div>` : ''}<div style="display:flex;justify-content:space-between;font-weight:bold;font-size:15px;margin-top:6px;"><span>TOTAL</span><span>${s}${parseFloat(order.TotalAmount).toFixed(2)}</span></div><div style="display:flex;justify-content:space-between;font-size:12px;color:#555;margin-top:4px;"><span>Payment</span><span>${order.PaymentMethod}</span></div>${order.Notes ? `<div style="margin-top:6px;font-size:11px;color:#555;"><em>Notes: ${order.Notes}</em></div>` : ''}<hr style="border:1px dashed #ccc;margin:8px 0;"><div style="text-align:center;font-size:11px;color:#999;">${settings.footer || 'Thank you for dining with us! 🙏'}</div></div>`;
+  const fee = order.GCashFee || 0;
+  const discountLine = (order.DiscountAmount||0)>0 ? `<div style="display:flex;justify-content:space-between;color:green;"><span>Discount (${order.DiscountCode})</span><span>− ${s}${parseFloat(order.DiscountAmount).toFixed(2)}</span></div>` : '';
+  const feeLine = fee > 0 ? `<div style="display:flex;justify-content:space-between;color:#555;"><span>GCash fee</span><span>+ ${s}${parseFloat(fee).toFixed(2)}</span></div>` : '';
+  document.getElementById('receiptContent').innerHTML = `<div style="font-family:monospace;font-size:13px;color:#1a1008;padding:8px;"><div style="text-align:center;margin-bottom:12px;"><div style="font-size:17px;font-weight:bold;">${settings.name || "Mommy's FoodHub"}</div>${settings.address ? `<div style="font-size:11px;color:#666;">${settings.address}</div>` : ''}${settings.contact ? `<div style="font-size:11px;color:#666;">${settings.contact}</div>` : ''}<div style="font-size:11px;color:#666;">${now.toLocaleDateString()} ${now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div><div style="font-size:11px;color:#666;">Cashier: ${currentUser?.Name || '—'} | Order #${order.orderNum || orderId || '—'}</div><div style="font-size:11px;color:#666;">${order.OrderType}</div>${!orderId ? '<div style="font-size:11px;color:#e66;">⚠ Offline Order</div>' : ''}</div><hr style="border:1px dashed #ccc;margin:8px 0;"><table style="width:100%;border-collapse:collapse;"><thead><tr style="font-size:11px;color:#999;"><th style="text-align:left">Item</th><th style="text-align:center">Qty</th><th style="text-align:right">Amt</th></tr></thead><tbody>${items.map(i => {
+    const mods = i.mods && i.mods.length ? `<div style="font-size:10px;color:#666;">${i.mods.map(m => `${m.delta>0?'+':''}${m.delta} ${m.label}`).join(' | ')}</div>` : '';
+    return `<tr><td>${i.name}${i.size ? ` (${i.size})` : ''}${mods}</td><td style="text-align:center">${i.quantity}</td><td style="text-align:right">${s}${(i.price*i.quantity).toFixed(2)}</td></tr>`;
+  }).join('')}</tbody></table><hr style="border:1px dashed #ccc;margin:8px 0;"><div style="display:flex;justify-content:space-between;"><span>Subtotal</span><span>${s}${sub.toFixed(2)}</span></div>${discountLine}${feeLine}<div style="display:flex;justify-content:space-between;font-weight:bold;font-size:15px;margin-top:6px;"><span>TOTAL</span><span>${s}${parseFloat(order.TotalAmount).toFixed(2)}</span></div><div style="display:flex;justify-content:space-between;font-size:12px;color:#555;margin-top:4px;"><span>Payment</span><span>${order.PaymentMethod}</span></div>${order.Notes ? `<div style="margin-top:6px;font-size:11px;color:#555;"><em>Notes: ${order.Notes}</em></div>` : ''}<hr style="border:1px dashed #ccc;margin:8px 0;"><div style="text-align:center;font-size:11px;color:#999;">${settings.footer || 'Thank you for dining with us! 🙏'}</div></div>`;
   document.getElementById('receiptModal').classList.add('open');
 }
 window.closeReceipt = function() { document.getElementById('receiptModal').classList.remove('open'); };
