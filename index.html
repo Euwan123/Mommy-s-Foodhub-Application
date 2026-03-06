@@ -1558,20 +1558,60 @@ window.checkout = async function() {
   const fee = payment === 'GCash' ? gcashFee(baseTotal) : 0;
   const total = baseTotal + fee;
   const cartSnapshot = [...cart.map(i => ({ ...i }))];
-  const orderData = { EmployeeID: currentUser.EmployeeID, OrderDateTime: new Date().toISOString(), OrderType: orderType, PaymentMethod: payment, TotalAmount: total, Status: 'Pending', Notes: notes || null, DiscountCode: activePromo?.code || null, DiscountAmount: disc, GCashFee: fee };
-  if (!navigator.onLine) { saveOfflineOrder({ ...orderData, items: cartSnapshot, orderNum: orderCounter }); showToast(`Saved offline! Order #${orderCounter}`, 'success'); showReceiptFromData({ ...orderData, items: cartSnapshot, orderNum: orderCounter }, null); orderCounter++; clearCart(); closeMobileCart(); return; }
-  const { data: orderRow, error } = await sb.from('Order').insert([orderData]).select().single();
-  if (error) { saveOfflineOrder({ ...orderData, items: cartSnapshot, orderNum: orderCounter }); showToast('Saved offline — will sync later', 'error'); orderCounter++; clearCart(); closeMobileCart(); return; }
-  await sb.from('OrderDetails').insert(cartSnapshot.map(i => ({ OrderID: orderRow.OrderID, ProductID: i.id, SizeLabel: i.size || null, Quantity: i.quantity, Price: i.price, Subtotal: i.price * i.quantity })));
+  const orderData = { EmployeeID: currentUser.EmployeeID, OrderDateTime: new Date().toISOString(), OrderType: orderType, PaymentMethod: payment, TotalAmount: total, Status: 'Pending', Notes: notes || null, DiscountCode: activePromo?.code || null, DiscountAmount: disc };
+  const orderDataSnake = { employee_id: currentUser.EmployeeID, order_date_time: new Date().toISOString(), order_type: orderType, payment_method: payment, total_amount: total, status: 'Pending', notes: notes || null, discount_code: activePromo?.code || null, discount_amount: disc };
+  if (!navigator.onLine) { saveOfflineOrder({ ...orderData, items: cartSnapshot, orderNum: orderCounter, GCashFee: fee }); showToast(`Saved offline! Order #${orderCounter}`, 'success'); showReceiptFromData({ ...orderData, GCashFee: fee, items: cartSnapshot, orderNum: orderCounter }, null); orderCounter++; clearCart(); closeMobileCart(); return; }
+  let orderRow = null, orderErr = null;
+  let res = await sb.from('Order').insert([orderData]).select().single();
+  orderRow = res.data; orderErr = res.error;
+  if (orderErr) {
+    res = await sb.from('Order').insert([orderDataSnake]).select().single();
+    orderRow = res.data; orderErr = res.error;
+  }
+  if (orderErr || !orderRow) {
+    showToast('Order failed: ' + (orderErr?.message || 'Could not save'), 'error');
+    return;
+  }
+  const orderId = orderRow.OrderID ?? orderRow.order_id;
+  if (!orderId) {
+    showToast('Order failed: no order ID returned', 'error');
+    return;
+  }
+  const detailsPayload = cartSnapshot.map(i => ({ OrderID: orderId, ProductID: i.id, SizeLabel: i.size || null, Quantity: i.quantity, Price: i.price, Subtotal: i.price * i.quantity }));
+  let detailsErr = (await sb.from('OrderDetails').insert(detailsPayload)).error;
+  if (detailsErr) {
+    const detailsPayloadSnake = cartSnapshot.map(i => ({ order_id: orderId, product_id: i.id, size_label: i.size || null, quantity: i.quantity, price: i.price, subtotal: i.price * i.quantity }));
+    detailsErr = (await sb.from('OrderDetails').insert(detailsPayloadSnake)).error;
+  }
+  if (detailsErr) {
+    showToast('Order saved but items failed: ' + (detailsErr.message || 'Could not save items'), 'error');
+    try { await sb.from('Order').delete().eq('OrderID', orderId); } catch (_) { try { await sb.from('Order').delete().eq('order_id', orderId); } catch (_2) {} }
+    return;
+  }
   for (const i of cartSnapshot) {
-    const ingRows = await sb.from('Ingredients').select('ItemID, UnitPerServing').eq('ProductID', i.id);
-    if (ingRows.data?.length) { for (const ing of ingRows.data) { const { data: itemRow } = await sb.from('Item').select('UnitQuantity').eq('ItemID', ing.ItemID).single(); const curr = itemRow?.UnitQuantity ?? 0; const deduct = (ing.UnitPerServing || 0) * i.quantity; await sb.from('Item').update({ UnitQuantity: Math.max(0, curr - deduct) }).eq('ItemID', ing.ItemID); await sb.from('IngredientLog').insert([{ ItemID: ing.ItemID, OrderID: orderRow.OrderID, ChangeAmt: -deduct, Reason: 'Order' }]); } }
+    try {
+      const { data: ingData } = await sb.from('Ingredients').select('ItemID, UnitPerServing').eq('ProductID', i.id);
+      if (ingData?.length) {
+        for (const ing of ingData) {
+          const itemId = ing.ItemID ?? ing.item_id;
+          const perServing = parseFloat(ing.UnitPerServing ?? ing.unit_per_serving) || 0;
+          const deduct = perServing * i.quantity;
+          const { data: itemRow } = await sb.from('Item').select('UnitQuantity').eq('ItemID', itemId).single();
+          const curr = parseFloat(itemRow?.UnitQuantity ?? itemRow?.unit_quantity ?? 0) || 0;
+          await sb.from('Item').update({ UnitQuantity: Math.max(0, curr - deduct) }).eq('ItemID', itemId);
+          await sb.from('IngredientLog').insert([{ ItemID: itemId, OrderID: orderId, ChangeAmt: -deduct, Reason: 'Order' }]);
+        }
+      }
+    } catch (e) {}
   }
   showToast(`Order #${orderCounter} placed! ${sym()}${total.toFixed(2)}`, 'success');
-  showReceiptFromData({ ...orderData, items: cartSnapshot, orderNum: orderCounter }, orderRow.OrderID);
+  showReceiptFromData({ ...orderData, GCashFee: fee, items: cartSnapshot, orderNum: orderCounter }, orderId);
   orderCounter++;
-  await loadProducts(); renderProductGrid();
-  clearCart(); closeMobileCart();
+  await loadProducts();
+  renderProductGrid();
+  if (window.loadKitchen) await window.loadKitchen();
+  clearCart();
+  closeMobileCart();
 };
 
 function saveOfflineOrder(order) {
