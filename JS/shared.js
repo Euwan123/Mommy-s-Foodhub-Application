@@ -11,6 +11,31 @@ const S = () => JSON.parse(localStorage.getItem('pos_settings') || '{}');
 const sym = () => S().currency || '₱';
 const isAdmin = () => currentUser && (currentUser.AccessLevel === 'Admin' || currentUser.AccessLevel === 'Manager');
 
+const ingredientGroups = [
+  { label: '🥩 Meats', keywords: ['meat','pork','beef','chicken','fish','liempo','bacon','longganisa','hotdog','tuna','bangus','tilapia','shrimp'] },
+  { label: '🥦 Vegetables', keywords: ['vegetable','veggie','tomato','onion','garlic','cabbage','carrot','potato','kangkong','spinach','lettuce','pepper','ginger','leek','celery','mushroom'] },
+  { label: '🍚 Grains & Starches', keywords: ['rice','flour','bread','pasta','noodle','pandesal','waffle mix','cornstarch','starch'] },
+  { label: '🥛 Dairy & Eggs', keywords: ['milk','cream','egg','butter','cheese','yogurt'] },
+  { label: '🍬 Sweeteners & Syrup', keywords: ['sugar','syrup','honey','brown sugar','condensed','caramel','chocolate','choco'] },
+  { label: '🫙 Sauces & Condiments', keywords: ['sauce','vinegar','soy','ketchup','oyster','fish sauce','patis','mayo','mustard','dressing','oil','lard'] },
+  { label: '🧂 Seasonings & Spices', keywords: ['salt','pepper','seasoning','spice','powder','paprika','cumin','bay','msg','magic sarap','knorr','star anise'] },
+  { label: '🧋 Beverages & Base', keywords: ['tea','coffee','juice','water','ice','soda','milk tea','base','concentrate'] },
+  { label: '📦 Packaging', keywords: ['cup','box','bag','straw','container','wrap','foil','tray','napkin','tissue','spoon','fork','lid'] },
+  { label: '🛒 Others', keywords: [] }
+];
+
+function getIngredientGroup(name) {
+  const lower = (name || '').toLowerCase();
+  for (const g of ingredientGroups) {
+    if (g.label === '🛒 Others') continue;
+    if (g.keywords.some(k => lower.includes(k))) return g.label;
+  }
+  return '🛒 Others';
+}
+
+window.getIngredientGroup = getIngredientGroup;
+window.ingredientGroups = ingredientGroups;
+
 function escapeHtml(str) {
   return String(str ?? '')
     .replace(/&/g, '&amp;')
@@ -19,6 +44,8 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
+
+window.escapeHtml = escapeHtml;
 
 let toastTimer;
 function showToast(msg, type) {
@@ -35,18 +62,24 @@ function applyTheme() {
   const s = S();
   if (s.themeColor) {
     document.documentElement.style.setProperty('--amber', s.themeColor);
+    document.documentElement.style.setProperty('--amber-light', lightenHex(s.themeColor, 40));
     const meta = document.getElementById('themeMetaColor');
     if (meta) meta.setAttribute('content', s.themeColor);
   }
   if (s.bgColor) {
-    const adj = function (hex, a) {
-      return '#' + [1, 3, 5].map(function (i) { return Math.min(255, parseInt(hex.slice(i, i + 2), 16) + a).toString(16).padStart(2, '0'); }).join('');
-    };
-    document.documentElement.style.setProperty('--bg', s.bgColor);
-    document.documentElement.style.setProperty('--surface', adj(s.bgColor, 14));
-    document.documentElement.style.setProperty('--surface2', adj(s.bgColor, 22));
-    document.documentElement.style.setProperty('--border', adj(s.bgColor, 35));
+    applyBgVars(s.bgColor);
   }
+}
+
+function lightenHex(hex, amount) {
+  return '#' + [1, 3, 5].map(i => Math.min(255, parseInt(hex.slice(i, i + 2), 16) + amount).toString(16).padStart(2, '0')).join('');
+}
+
+function applyBgVars(bg) {
+  document.documentElement.style.setProperty('--bg', bg);
+  document.documentElement.style.setProperty('--surface', lightenHex(bg, 14));
+  document.documentElement.style.setProperty('--surface2', lightenHex(bg, 22));
+  document.documentElement.style.setProperty('--border', lightenHex(bg, 35));
 }
 
 function setThemeColor(color) {
@@ -54,6 +87,7 @@ function setThemeColor(color) {
   s.themeColor = color;
   localStorage.setItem('pos_settings', JSON.stringify(s));
   document.documentElement.style.setProperty('--amber', color);
+  document.documentElement.style.setProperty('--amber-light', lightenHex(color, 40));
   const meta = document.getElementById('themeMetaColor');
   if (meta) meta.setAttribute('content', color);
 }
@@ -62,19 +96,15 @@ function setBgColor(bg) {
   const s = S();
   s.bgColor = bg;
   localStorage.setItem('pos_settings', JSON.stringify(s));
-  const adj = function (hex, a) {
-    return '#' + [1, 3, 5].map(function (i) { return Math.min(255, parseInt(hex.slice(i, i + 2), 16) + a).toString(16).padStart(2, '0'); }).join('');
-  };
-  document.documentElement.style.setProperty('--bg', bg);
-  document.documentElement.style.setProperty('--surface', adj(bg, 14));
-  document.documentElement.style.setProperty('--surface2', adj(bg, 22));
-  document.documentElement.style.setProperty('--border', adj(bg, 35));
+  applyBgVars(bg);
 }
 
 function setCurrency(symbol) {
   const s = S();
   s.currency = symbol;
   localStorage.setItem('pos_settings', JSON.stringify(s));
+  document.querySelectorAll('.curr-sym').forEach(e => { e.textContent = symbol; });
+  document.querySelectorAll('.curr-sym-inline').forEach(e => { e.textContent = symbol; });
 }
 
 window.applyCustomColor = function (val) { setThemeColor(val); };
@@ -139,6 +169,12 @@ function loadSettingsForm() {
   });
 }
 
+window.loadSettingsForm = loadSettingsForm;
+window.applyTheme = applyTheme;
+window.setThemeColor = setThemeColor;
+window.setBgColor = setBgColor;
+window.setCurrency = setCurrency;
+
 window.changePassword = async function () {
   const cur = document.getElementById('curPass').value;
   const nw = document.getElementById('newPass').value;
@@ -166,6 +202,8 @@ function updateShiftBadge(checkInTime, active) {
     badge.classList.remove('active');
   }
 }
+
+window.updateShiftBadge = updateShiftBadge;
 
 window.openAccountModal = function () {
   if (!currentUser) return;
@@ -217,6 +255,8 @@ function startEmployeeCheckoutPoll() {
   employeeCheckoutPollTimer = setTimeout(poll, 3000);
 }
 
+window.startEmployeeCheckoutPoll = startEmployeeCheckoutPoll;
+
 async function checkOpenAttendance() {
   const today = new Date().toISOString().split('T')[0];
   const { data } = await sb.from('Attendance')
@@ -234,11 +274,15 @@ async function checkOpenAttendance() {
   }
 }
 
+window.checkOpenAttendance = checkOpenAttendance;
+
 function updateOfflineBadge() {
   const pending = JSON.parse(localStorage.getItem('offline_orders') || '[]');
   const el = document.getElementById('statOffline');
   if (el) el.textContent = pending.length;
 }
+
+window.updateOfflineBadge = updateOfflineBadge;
 
 window.syncOfflineOrders = async function () {
   const pending = JSON.parse(localStorage.getItem('offline_orders') || '[]');
@@ -247,16 +291,28 @@ window.syncOfflineOrders = async function () {
   let synced = 0;
   for (const o of pending) {
     const { data: row, error } = await sb.from('Order').insert([{
-      EmployeeID: o.EmployeeID, OrderDateTime: o.saved_at, OrderType: o.OrderType,
-      PaymentMethod: o.PaymentMethod, TotalAmount: o.TotalAmount, Status: 'Completed',
-      Notes: o.Notes, DiscountCode: o.DiscountCode, DiscountAmount: o.DiscountAmount,
+      EmployeeID: o.EmployeeID,
+      OrderDateTime: o.OrderDateTime || o.saved_at,
+      OrderType: o.OrderType,
+      PaymentMethod: o.PaymentMethod,
+      TotalAmount: o.TotalAmount,
+      Status: 'Completed',
+      Notes: o.Notes,
+      DiscountCode: o.DiscountCode,
+      DiscountAmount: o.DiscountAmount,
       GCashFee: o.GCashFee || null
     }]).select().single();
     if (!error && row) {
-      await sb.from('OrderDetails').insert(o.items.map(function (i) { return {
-        OrderID: row.OrderID, ProductID: i.id, SizeLabel: i.size || null,
-        Quantity: i.quantity, Price: i.price, Subtotal: i.price * i.quantity
-      }; }));
+      await sb.from('OrderDetails').insert(o.items.map(function (i) {
+        return {
+          OrderID: row.OrderID,
+          ProductID: i.id,
+          SizeLabel: i.size || null,
+          Quantity: i.quantity,
+          Price: i.price,
+          Subtotal: i.price * i.quantity
+        };
+      }));
       for (const i of o.items) {
         const { data: ingData } = await sb.from('Ingredients').select('ItemID,UnitPerServing').eq('ProductID', i.id);
         if (ingData?.length) {
@@ -294,5 +350,7 @@ async function refundOrderIngredients(orderId) {
     }
   }
 }
+
+window.refundOrderIngredients = refundOrderIngredients;
 
 document.getElementById('loginPass').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });

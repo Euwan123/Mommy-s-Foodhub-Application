@@ -92,6 +92,7 @@ window.showAdminTab = function (name, btn) {
   if (name === 'menu') { renderProductsTable(); renderSizesTable(); }
   if (name === 'promos') renderPromosTable();
   if (name === 'staffmgmt') renderStaffTable();
+  if (name === 'categories') { loadAdminCategories().then(renderCategoriesTable); }
   if (name === 'settings') { loadSettingsForm(); applyTheme(); }
 };
 
@@ -101,10 +102,11 @@ window.loadReports = async function () {
   if (d) query = query.gte('OrderDateTime', d + 'T00:00:00').lte('OrderDateTime', d + 'T23:59:59');
   const { data: orders } = await query;
   const s = sym();
-  const validOrders = (orders || []).filter(o => o.Status !== 'Cancelled' && o.Status !== 'Refunded');
+  const allOrders = orders || [];
+  const validOrders = allOrders.filter(o => o.Status !== 'Cancelled' && o.Status !== 'Refunded');
   const total = validOrders.reduce((n, o) => n + parseFloat(o.TotalAmount || 0), 0);
-  const avg = orders?.length ? total / Math.max(1, validOrders.length) : 0;
-  document.getElementById('statOrders').textContent = orders?.length || 0;
+  const avg = validOrders.length ? total / validOrders.length : 0;
+  document.getElementById('statOrders').textContent = validOrders.length;
   document.getElementById('statRevenue').textContent = s + total.toFixed(2);
   document.getElementById('statAvg').textContent = s + avg.toFixed(2);
   await loadProductCosts();
@@ -124,20 +126,20 @@ window.loadReports = async function () {
   if (costEl) costEl.textContent = s + totalIngredientCost.toFixed(2);
   const pending = JSON.parse(localStorage.getItem('offline_orders') || '[]');
   document.getElementById('statOffline').textContent = pending.length;
-  renderBestSellers(orders || []);
+  renderBestSellers(allOrders);
   const tbody = document.getElementById('ordersBody');
-  if (!orders?.length) { tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:30px;">No orders found.</td></tr>'; return; }
-  tbody.innerHTML = orders.map((o, i) => {
+  if (!allOrders.length) { tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:30px;">No orders found.</td></tr>'; return; }
+  tbody.innerHTML = allOrders.map((o, i) => {
     const dt = new Date(o.OrderDateTime);
     const items = (o.OrderDetails || []).map(d => `${escapeHtml(d.Product?.Name)}${d.SizeLabel ? ` (${escapeHtml(d.SizeLabel)})` : ''} ×${d.Quantity}`).join(', ');
     const sc = { Completed: 'var(--green)', Cancelled: 'var(--red)', Pending: '#ca8a04', Refunded: '#7c3aed' }[o.Status] || 'var(--text-muted)';
-    return `<tr><td>${orders.length - i}</td><td>${dt.toLocaleDateString()} ${dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td><td>${escapeHtml(o.Employee?.Name || '—')}</td><td><span class="badge">${escapeHtml(o.OrderType)}</span></td><td><span class="badge">${escapeHtml(o.PaymentMethod)}</span></td><td style="font-size:12px;color:var(--text-muted);max-width:200px;">${items || '—'}</td><td><span style="color:${sc};font-size:12px;font-weight:600;">${o.Status}</span></td><td style="color:var(--green);font-weight:700;">${s}${parseFloat(o.TotalAmount).toFixed(2)}</td><td><button class="btn-icon" onclick="openStatusModal(${o.OrderID},'${o.Status}')">✏️</button></td></tr>`;
+    return `<tr><td>${allOrders.length - i}</td><td>${dt.toLocaleDateString()} ${dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td><td>${escapeHtml(o.Employee?.Name || '—')}</td><td><span class="badge">${escapeHtml(o.OrderType)}</span></td><td><span class="badge">${escapeHtml(o.PaymentMethod)}</span></td><td style="font-size:12px;color:var(--text-muted);max-width:200px;">${items || '—'}</td><td><span style="color:${sc};font-size:12px;font-weight:600;">${escapeHtml(o.Status)}</span></td><td style="color:var(--green);font-weight:700;">${s}${parseFloat(o.TotalAmount).toFixed(2)}</td><td><button class="btn-icon" onclick="openStatusModal(${o.OrderID},'${escapeHtml(o.Status)}')">✏️</button></td></tr>`;
   }).join('');
 };
 
 function renderBestSellers(orders) {
   const counts = {};
-  orders.forEach(o => (o.OrderDetails || []).forEach(d => { const n = d.Product?.Name || '?'; counts[n] = (counts[n] || 0) + d.Quantity; }));
+  orders.filter(o => o.Status !== 'Cancelled' && o.Status !== 'Refunded').forEach(o => (o.OrderDetails || []).forEach(d => { const n = d.Product?.Name || '?'; counts[n] = (counts[n] || 0) + d.Quantity; }));
   const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
   const max = sorted[0]?.[1] || 1;
   const el = document.getElementById('bestSellersChart');
@@ -209,7 +211,7 @@ window.loadAttendance = async function () {
     const co = a.CheckOut ? new Date(a.CheckOut) : null;
     const dur = co ? Math.round((co - ci) / 60000) : null;
     const durText = dur !== null ? `${Math.floor(dur / 60)}h ${dur % 60}m` : 'In progress';
-    return `<tr><td><strong>${escapeHtml(a.Employee?.Name || '—')}</strong></td><td>${ci.toLocaleDateString()} ${ci.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td><td>${co ? co.toLocaleDateString() + ' ' + co.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</td><td>${durText}</td><td><span class="attend-status ${a.Status}">${a.Status}</span></td><td>${escapeHtml(a.Approver?.Name || '—')}</td><td>${a.Status === 'Pending' ? `<button class="btn-icon" onclick="approveAttendance(${a.AttendanceID},'Approved')">✓</button><button class="btn-icon" onclick="approveAttendance(${a.AttendanceID},'Rejected')">✕</button>` : ''}</td></tr>`;
+    return `<tr><td><strong>${escapeHtml(a.Employee?.Name || '—')}</strong></td><td>${ci.toLocaleDateString()} ${ci.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td><td>${co ? co.toLocaleDateString() + ' ' + co.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</td><td>${durText}</td><td><span class="attend-status ${escapeHtml(a.Status)}">${escapeHtml(a.Status)}</span></td><td>${escapeHtml(a.Approver?.Name || '—')}</td><td>${a.Status === 'Pending' ? `<button class="btn-icon" onclick="approveAttendance(${a.AttendanceID},'Approved')">✓</button><button class="btn-icon" onclick="approveAttendance(${a.AttendanceID},'Rejected')">✕</button>` : ''}</td></tr>`;
   }).join('');
 };
 
@@ -228,7 +230,7 @@ window.checkoutAttendance = async function (id) {
 window.loadPerformance = async function () {
   const from = document.getElementById('perfDateFrom')?.value;
   const to = document.getElementById('perfDateTo')?.value;
-  let q = sb.from('Order').select('EmployeeID, TotalAmount, OrderDetails(Quantity)');
+  let q = sb.from('Order').select('EmployeeID, TotalAmount, Status, OrderDetails(Quantity)');
   if (from) q = q.gte('OrderDateTime', from + 'T00:00:00');
   if (to) q = q.lte('OrderDateTime', to + 'T23:59:59');
   const { data: orders } = await q;
@@ -239,7 +241,7 @@ window.loadPerformance = async function () {
   const s = sym();
   if (!allStaff.length) { grid.innerHTML = '<div style="color:var(--text-muted);">No staff found.</div>'; return; }
   grid.innerHTML = allStaff.map(staff => {
-    const myOrders = (orders || []).filter(o => o.EmployeeID === staff.EmployeeID);
+    const myOrders = (orders || []).filter(o => o.EmployeeID === staff.EmployeeID && o.Status !== 'Cancelled' && o.Status !== 'Refunded');
     const revenue = myOrders.reduce((n, o) => n + parseFloat(o.TotalAmount || 0), 0);
     const items = myOrders.reduce((n, o) => n + (o.OrderDetails || []).reduce((nn, d) => nn + d.Quantity, 0), 0);
     const myAtt = (att || []).filter(a => a.EmployeeID === staff.EmployeeID);
@@ -293,7 +295,6 @@ function buildInvCard(item) {
 }
 
 function renderInventoryGrid() {
-  const s = sym();
   let items = allItems;
   if (invStockFilter === 'low') items = allItems.filter(i => i.UnitQuantity <= i.RestockLvl && i.UnitQuantity > 0);
   else if (invStockFilter === 'out') items = allItems.filter(i => i.UnitQuantity <= 0);
@@ -332,17 +333,43 @@ window.loadInventory = async function () {
   const totalEl = document.getElementById('invTotal');
   const lowEl = document.getElementById('invLow');
   const outEl = document.getElementById('invOut');
-  if (totalEl) { totalEl.textContent = allItems.length; totalEl.style.cursor = 'pointer'; totalEl.onclick = function () { filterInventoryByStock('all', null); document.querySelectorAll('.inv-stat-btn').forEach(b => b.classList.remove('active')); }; }
-  if (lowEl) { lowEl.textContent = low; lowEl.style.cursor = 'pointer'; lowEl.onclick = function () { filterInventoryByStock('low', null); }; }
-  if (outEl) { outEl.textContent = out; outEl.style.cursor = 'pointer'; outEl.onclick = function () { filterInventoryByStock('out', null); }; }
+  if (totalEl) { totalEl.textContent = allItems.length; }
+  if (lowEl) { lowEl.textContent = low; }
+  if (outEl) { outEl.textContent = out; }
 
   invStockFilter = 'all';
   renderInventoryGrid();
 
   const { data: ingRows } = await sb.from('Ingredients').select('*, Item(Name, UnitType), Product(Name)');
-  document.getElementById('ingMapBody').innerHTML = (ingRows || []).map(r =>
-    '<tr><td>' + escapeHtml(r.Item?.Name || '—') + '</td><td>' + escapeHtml(r.Product?.Name || '—') + '</td><td>' + r.UnitPerServing + '</td><td>' + escapeHtml(r.Item?.UnitType || '—') + '</td></tr>'
-  ).join('');
+  const ingMapBody = document.getElementById('ingMapBody');
+  if (ingMapBody) {
+    ingMapBody.innerHTML = (ingRows || []).map(r =>
+      '<tr>' +
+      '<td>' + escapeHtml(r.Item?.Name || '—') + '</td>' +
+      '<td>' + escapeHtml(r.Product?.Name || '—') + '</td>' +
+      '<td>' + r.UnitPerServing + '</td>' +
+      '<td>' + escapeHtml(r.Item?.UnitType || '—') + '</td>' +
+      '<td>' + (isAdmin() ? '<button class="btn-icon" onclick="deleteIngredientMapping(' + r.IngredientID + ')">🗑</button>' : '') + '</td>' +
+      '</tr>'
+    ).join('');
+  }
+};
+
+window.deleteIngredientMapping = async function (id) {
+  if (!confirm('Remove this ingredient mapping?')) return;
+  await sb.from('Ingredients').delete().eq('IngredientID', id);
+  showToast('Mapping removed', 'success');
+  loadInventory();
+};
+
+window.saveNewIngredientMapping = async function () {
+  const productId = parseInt(document.getElementById('mapProductId').value, 10);
+  const itemId = parseInt(document.getElementById('mapItemId').value, 10);
+  const unitPerServing = parseFloat(document.getElementById('mapUnitPerServing').value);
+  if (!productId || !itemId || isNaN(unitPerServing)) { showToast('Fill all mapping fields', 'error'); return; }
+  await sb.from('Ingredients').insert([{ ProductID: productId, ItemID: itemId, UnitPerServing: unitPerServing }]);
+  showToast('Mapping added', 'success');
+  loadInventory();
 };
 
 window.openIngredientPriceModal = function (id, name, unitType, unitPrice) {
@@ -497,6 +524,54 @@ function renderSizesTable() {
   tbody.innerHTML = allAdminSizes.map(s => `<tr><td>${escapeHtml(s.Product?.Name || '—')}</td><td>${escapeHtml(s.Size)}</td><td>${sym()}${parseFloat(s.Price).toFixed(2)}</td><td><span style="color:${s.IsAvailable ? 'var(--green)' : 'var(--red)'};font-size:12px;font-weight:600;">${s.IsAvailable ? 'Yes' : 'No'}</span></td><td><button class="btn-icon" onclick="editSize(${s.ProductSizeID})">✏️</button><button class="btn-icon" onclick="deleteSize(${s.ProductSizeID})">🗑</button></td></tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px;">No sizes yet.</td></tr>';
 }
 
+window.saveCategory = async function () {
+  const name = document.getElementById('catName').value.trim();
+  const editId = document.getElementById('catEditId').value;
+  if (!name) { showToast('Category name required', 'error'); return; }
+  if (editId) {
+    await sb.from('Category').update({ CategoryName: name }).eq('CategoryID', editId);
+  } else {
+    await sb.from('Category').insert([{ CategoryName: name }]);
+  }
+  showToast('Category saved!', 'success');
+  cancelCategoryEdit();
+  await loadAdminCategories();
+  populateCatDropdown();
+  renderCategoriesTable();
+};
+
+window.editCategory = function (id) {
+  const c = allAdminCategories.find(x => x.CategoryID === id);
+  if (!c) return;
+  document.getElementById('catEditId').value = c.CategoryID;
+  document.getElementById('catName').value = c.CategoryName;
+  document.getElementById('catFormTitle').textContent = 'Edit Category';
+};
+
+window.deleteCategory = async function (id) {
+  if (!confirm('Delete this category?')) return;
+  await sb.from('Category').delete().eq('CategoryID', id);
+  showToast('Deleted', 'success');
+  await loadAdminCategories();
+  populateCatDropdown();
+  renderCategoriesTable();
+};
+
+window.cancelCategoryEdit = function () {
+  const e = document.getElementById('catName');
+  if (e) e.value = '';
+  const ei = document.getElementById('catEditId');
+  if (ei) ei.value = '';
+  const t = document.getElementById('catFormTitle');
+  if (t) t.textContent = 'Add Category';
+};
+
+function renderCategoriesTable() {
+  const tbody = document.getElementById('categoriesTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = allAdminCategories.map(c => `<tr><td>${escapeHtml(c.CategoryName)}</td><td><button class="btn-icon" onclick="editCategory(${c.CategoryID})">✏️</button><button class="btn-icon" onclick="deleteCategory(${c.CategoryID})">🗑</button></td></tr>`).join('') || '<tr><td colspan="2" style="text-align:center;color:var(--text-muted);padding:20px;">No categories yet.</td></tr>';
+}
+
 window.savePromo = async function () {
   const Code = document.getElementById('promoCode').value.trim().toUpperCase();
   const Type = document.getElementById('promoType').value;
@@ -611,7 +686,7 @@ window.openStaffInfo = function (id) {
   const fmt = v => (v == null || v === '') ? '—' : escapeHtml(String(v));
   const dob = (s.DateofBirth || '').toString().split('T')[0];
   const hired = (s.DateHired || '').toString().split('T')[0];
-  document.getElementById('staffInfoContent').innerHTML = `<div class="account-row"><span>Full Name</span><strong>${fmt(s.Name)}</strong></div><div class="account-row"><span>Username</span><strong>${fmt(s.Username)}</strong></div><div class="account-row"><span>Position</span><strong>${fmt(s.Position)}</strong></div><div class="account-row"><span>Password</span><strong>••••••••</strong></div><div class="account-row"><span>Access Level</span><strong>${fmt(s.AccessLevel)}</strong></div><div class="account-row"><span>Per hour salary</span><strong>₱${parseFloat(s.HourlyRate ?? 0).toFixed(2)}</strong></div><div class="account-row"><span>Date of Birth</span><strong>${fmt(dob)}</strong></div><div class="account-row"><span>Date Hired</span><strong>${fmt(hired)}</strong></div><div class="account-row"><span>Contact</span><strong>${fmt(s.ContactNumber)}</strong></div><div class="account-row"><span>Email</span><strong>${fmt(s.Email)}</strong></div><div class="account-row"><span>Address</span><strong>${fmt(s.Address)}</strong></div>`;
+  document.getElementById('staffInfoContent').innerHTML = `<div class="account-row"><span>Full Name</span><strong>${fmt(s.Name)}</strong></div><div class="account-row"><span>Username</span><strong>${fmt(s.Username)}</strong></div><div class="account-row"><span>Position</span><strong>${fmt(s.Position)}</strong></div><div class="account-row"><span>Password</span><strong>••••••••</strong></div><div class="account-row"><span>Access Level</span><strong>${fmt(s.AccessLevel)}</strong></div><div class="account-row"><span>Per hour salary</span><strong>${sym()}${parseFloat(s.HourlyRate ?? 0).toFixed(2)}</strong></div><div class="account-row"><span>Date of Birth</span><strong>${fmt(dob)}</strong></div><div class="account-row"><span>Date Hired</span><strong>${fmt(hired)}</strong></div><div class="account-row"><span>Contact</span><strong>${fmt(s.ContactNumber)}</strong></div><div class="account-row"><span>Email</span><strong>${fmt(s.Email)}</strong></div><div class="account-row"><span>Address</span><strong>${fmt(s.Address)}</strong></div>`;
   document.getElementById('staffInfoModal').classList.add('open');
 };
 window.closeStaffInfo = function () { document.getElementById('staffInfoModal').classList.remove('open'); };
@@ -620,3 +695,5 @@ function renderStaffTable() {
   const tbody = document.getElementById('staffTableBody');
   tbody.innerHTML = allStaff.map(s => `<tr style="cursor:pointer;" onclick="openStaffInfo(${s.EmployeeID})" title="Click to view info"><td>${escapeHtml(s.Name)}</td><td>${escapeHtml(s.Username || '—')}</td><td>${escapeHtml(s.Position || '—')}</td><td><span class="badge">${escapeHtml(s.AccessLevel)}</span></td><td><button class="btn-icon" onclick="event.stopPropagation();editStaff(${s.EmployeeID})">✏️</button><button class="btn-icon" onclick="event.stopPropagation();deleteStaff(${s.EmployeeID})">🗑</button></td></tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px;">No staff.</td></tr>';
 }
+
+window.loadAdminData = loadAdminData;

@@ -140,10 +140,33 @@ window.switchToAdmin = function () {
   document.getElementById('adminView').classList.add('active');
   document.getElementById('posBottomNav').style.display = 'none';
   document.getElementById('adminBottomNav').style.display = '';
-  loadAdminData();
+  loadAdminData().then(() => populateMappingDropdowns());
   const tabs = document.getElementById('adminTabs');
   if (tabs) tabs.style.display = adminPanelMode ? '' : 'none';
 };
+
+function populateMappingDropdowns() {
+  const prodSel = document.getElementById('mapProductId');
+  const itemSel = document.getElementById('mapItemId');
+  if (prodSel) {
+    prodSel.innerHTML = '<option value="">Select dish…</option>';
+    allAdminProducts.forEach(p => {
+      const o = document.createElement('option');
+      o.value = p.ProductID;
+      o.textContent = p.Name;
+      prodSel.appendChild(o);
+    });
+  }
+  if (itemSel) {
+    itemSel.innerHTML = '<option value="">Select ingredient…</option>';
+    allItems.forEach(i => {
+      const o = document.createElement('option');
+      o.value = i.ItemID;
+      o.textContent = i.Name + ' (' + (i.UnitType || 'unit') + ')';
+      itemSel.appendChild(o);
+    });
+  }
+}
 
 window.openAdminPanel = function (btn) {
   if (!isAdmin() && !adminOverride) {
@@ -211,4 +234,12 @@ if (!navigator.onLine) document.getElementById('offlineBanner').classList.add('s
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+}
+
+function renderPromosTable() {
+  const tbody = document.getElementById('promosTableBody');
+  if (!tbody) return;
+  const s = sym();
+  const editable = isAdmin();
+  tbody.innerHTML = allAdminPromos.map(p => `<tr><td><strong>${escapeHtml(p.Code)}</strong></td><td><span class="badge">${p.Type === 'percent' ? 'Percent' : 'Fixed'}</span></td><td>${p.Type === 'percent' ? p.Value + '%' : s + parseFloat(p.Value).toFixed(2)}</td>${editable ? `<td><button class="btn-icon" onclick="editPromo(${p.PromoID})">✏️</button><button class="btn-icon" onclick="deletePromo(${p.PromoID})">🗑</button></td>` : ''}</tr>`).join('') || `<tr><td colspan="${editable ? 4 : 3}" style="text-align:center;color:var(--text-muted);padding:20px;">No promos.</td></tr>`;
 }

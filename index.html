@@ -240,6 +240,7 @@
         <button class="atab-btn" onclick="showAdminTab('performance',this)">👤 Staff</button>
         <button class="atab-btn" onclick="showAdminTab('inventory',this)">📦 Ingredients</button>
         <button class="atab-btn" onclick="showAdminTab('menu',this)">🍽 Menu</button>
+        <button class="atab-btn" onclick="showAdminTab('categories',this)">🗂 Categories</button>
         <button class="atab-btn" onclick="showAdminTab('promos',this)">🏷 Promos</button>
         <button class="atab-btn" onclick="showAdminTab('staffmgmt',this)">👥 Staff Mgmt</button>
         <button class="atab-btn" onclick="showAdminTab('settings',this)">⚙️ Settings</button>
@@ -315,26 +316,43 @@
           <button class="btn-apply" onclick="loadInventory()">🔄 Refresh</button>
         </div>
         <div class="stats-row">
-          <div class="stat-card" style="cursor:pointer;" title="Show all" onclick="filterInventoryByStock('all',null)"><div class="stat-label">Total Ingredients</div><div class="stat-val" id="invTotal">—</div></div>
-          <div class="stat-card" style="cursor:pointer;border-color:#ca8a04;" title="Show low stock" onclick="filterInventoryByStock('low',null)"><div class="stat-label">🟡 Low Stock — click to filter</div><div class="stat-val" style="color:#ca8a04;" id="invLow">—</div></div>
-          <div class="stat-card" style="cursor:pointer;border-color:var(--red);" title="Show out of stock" onclick="filterInventoryByStock('out',null)"><div class="stat-label">🔴 Out of Stock — click to filter</div><div class="stat-val" style="color:var(--red);" id="invOut">—</div></div>
+          <div class="stat-card" style="cursor:pointer;" onclick="filterInventoryByStock('all',null)"><div class="stat-label">Total Ingredients</div><div class="stat-val" id="invTotal">—</div></div>
+          <div class="stat-card" style="cursor:pointer;border-color:#ca8a04;" onclick="filterInventoryByStock('low',null)"><div class="stat-label">🟡 Low Stock</div><div class="stat-val" style="color:#ca8a04;" id="invLow">—</div></div>
+          <div class="stat-card" style="cursor:pointer;border-color:var(--red);" onclick="filterInventoryByStock('out',null)"><div class="stat-label">🔴 Out of Stock</div><div class="stat-val" style="color:var(--red);" id="invOut">—</div></div>
         </div>
         <div class="mgmt-layout">
-          <div class="form-card" id="addIngredientCard">
-            <div class="form-title">Add Ingredient</div>
-            <div class="form-group"><label>Name</label><input type="text" id="ingName" placeholder="e.g. Egg"></div>
-            <div class="form-group"><label>Unit Type</label><input type="text" id="ingUnitType" placeholder="e.g. piece, kilo, liter"></div>
-            <div class="form-group"><label>Initial Quantity</label><input type="number" id="ingQty" placeholder="0" min="0" step="0.01"></div>
-            <div class="form-group"><label>Price per unit (₱)</label><input type="number" id="ingUnitPrice" placeholder="0" min="0" step="0.01"></div>
-            <div class="form-group"><label>Restock at level</label><input type="number" id="ingRestockLvl" placeholder="0" min="0" step="0.01"></div>
-            <button class="btn-primary" onclick="saveNewIngredient()">Add Ingredient</button>
-            <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">
-              <div class="form-title">Ingredient → Dish Mapping</div>
-              <div class="table-wrap" style="margin-top:10px;">
-                <table>
-                  <thead><tr><th>Ingredient</th><th>Used In</th><th>Per Serving</th><th>Unit</th></tr></thead>
-                  <tbody id="ingMapBody"></tbody>
-                </table>
+          <div id="addIngredientCard">
+            <div class="form-card" style="margin-bottom:16px;">
+              <div class="form-title">Add Ingredient</div>
+              <div class="form-group"><label>Name</label><input type="text" id="ingName" placeholder="e.g. Egg"></div>
+              <div class="form-group"><label>Unit Type</label><input type="text" id="ingUnitType" placeholder="e.g. piece, kilo, liter"></div>
+              <div class="form-group"><label>Initial Quantity</label><input type="number" id="ingQty" placeholder="0" min="0" step="0.01"></div>
+              <div class="form-group"><label>Price per unit (₱)</label><input type="number" id="ingUnitPrice" placeholder="0" min="0" step="0.01"></div>
+              <div class="form-group"><label>Restock at level</label><input type="number" id="ingRestockLvl" placeholder="0" min="0" step="0.01"></div>
+              <button class="btn-primary" onclick="saveNewIngredient()">Add Ingredient</button>
+            </div>
+            <div class="form-card">
+              <div class="form-title">Map Ingredient → Dish</div>
+              <div class="form-group"><label>Dish</label>
+                <select id="mapProductId" class="form-group">
+                  <option value="">Select dish…</option>
+                </select>
+              </div>
+              <div class="form-group"><label>Ingredient</label>
+                <select id="mapItemId">
+                  <option value="">Select ingredient…</option>
+                </select>
+              </div>
+              <div class="form-group"><label>Amount per serving</label><input type="number" id="mapUnitPerServing" placeholder="e.g. 1" min="0" step="0.01"></div>
+              <button class="btn-primary" onclick="saveNewIngredientMapping()">Add Mapping</button>
+              <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">
+                <div class="form-title">Current Mappings</div>
+                <div class="table-wrap" style="margin-top:10px;">
+                  <table>
+                    <thead><tr><th>Ingredient</th><th>Used In</th><th>Per Serving</th><th>Unit</th><th></th></tr></thead>
+                    <tbody id="ingMapBody"></tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
@@ -384,6 +402,25 @@
                 <tbody id="sizesTableBody"></tbody>
               </table>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="atab-categories" class="page">
+        <div class="section-title">🗂 Categories</div>
+        <div class="mgmt-layout">
+          <div class="form-card">
+            <div class="form-title" id="catFormTitle">Add Category</div>
+            <input type="hidden" id="catEditId">
+            <div class="form-group"><label>Category Name</label><input type="text" id="catName" placeholder="e.g. Rice Bowls"></div>
+            <button class="btn-primary" onclick="saveCategory()">Save Category</button>
+            <button class="btn-ghost" style="margin-top:8px;" onclick="cancelCategoryEdit()">Cancel</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Name</th><th></th></tr></thead>
+              <tbody id="categoriesTableBody"></tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -532,11 +569,33 @@
 </div>
 
 <div class="modal-overlay" id="sizeModal">
-  <div class="modal-box" style="max-width:340px;">
-    <div class="modal-title" id="sizeModalTitle">Choose Size / Pack</div>
-    <div class="size-list" id="sizeList"></div>
-    <div class="modal-footer" style="margin-top:12px;">
-      <button class="btn-modal-cancel" onclick="closeSizeModal()">Cancel</button>
+  <div class="modal-box" style="max-width:400px;">
+    <div class="size-modal-inner">
+      <div class="size-modal-product-name" id="sizeModalTitle"></div>
+      <div class="size-modal-subtitle">Choose your size or pack</div>
+      <div class="size-list" id="sizeList"></div>
+      <div style="margin-top:14px;">
+        <button class="btn-modal-cancel" onclick="closeSizeModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="ingModal">
+  <div class="modal-box" style="max-width:480px;">
+    <div class="ing-modal-header">
+      <div class="ing-modal-title" id="ingModalTitle"></div>
+      <div class="ing-modal-prices">
+        <div class="ing-modal-base">Base: <span id="ingModalBasePrice">₱0.00</span></div>
+        <div class="ing-modal-extra" id="ingModalExtraPrice"></div>
+        <div class="ing-modal-total" id="ingModalTotalPrice">₱0.00</div>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Adjust ingredients below. Extra portions add cost; removing is free.</div>
+    <div class="ing-modal-body" id="ingModalBody"></div>
+    <div class="ing-modal-footer">
+      <button class="ing-modal-skip" onclick="closeIngModal()">Cancel</button>
+      <button class="ing-modal-confirm" onclick="confirmIngModal()">✔ Add to Order</button>
     </div>
   </div>
 </div>
