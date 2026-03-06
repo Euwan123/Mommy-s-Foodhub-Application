@@ -12,6 +12,7 @@ let selectedOrderType = 'Dine-in';
 let selectedOrderTypeM = 'Dine-in';
 let checkoutSource = 'desktop';
 let orderCounter = 1;
+let dineInTableCounter = 0;
 let kitchenFilter = 'all';
 let kitchenOrders = [];
 
@@ -96,6 +97,12 @@ async function initPOS() {
     const today = new Date().toISOString().split('T')[0];
     const { count } = await sb.from('Order').select('*', { count: 'exact', head: true }).gte('OrderDateTime', today + 'T00:00:00');
     orderCounter = (count || 0) + 1;
+  } catch (_) {}
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const { count } = await sb.from('Order').select('*', { count: 'exact', head: true })
+      .eq('OrderType', 'Dine-in').gte('OrderDateTime', today + 'T00:00:00');
+    dineInTableCounter = count || 0;
   } catch (_) {}
 }
 
@@ -250,8 +257,8 @@ window.removeFromCart = function (key) {
 window.clearCart = function () {
   cart = [];
   activePromo = null;
-  ['promoInput','orderNotes','cashReceived','tableNumber','deliveryPlatform','deliveryRider',
-   'promoInputM','orderNotesM','cashReceivedM','tableNumberM','deliveryPlatformM','deliveryRiderM']
+  ['promoInput','orderNotes','cashReceived','deliveryPlatform','deliveryRider',
+   'promoInputM','orderNotesM','cashReceivedM','deliveryPlatformM','deliveryRiderM']
     .forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
   ['promoMsg','promoMsgM'].forEach(id => { const e = document.getElementById(id); if (e) e.textContent = ''; });
   renderCart();
@@ -314,13 +321,6 @@ function renderCart() {
     if (fee > 0) e.textContent = 'GCash fee: + ' + s + fee.toFixed(2);
   });
 
-  const dineIn = selectedOrderType === 'Dine-in';
-  const dineInM = selectedOrderTypeM === 'Dine-in';
-  const tw = document.getElementById('tableNumberWrap');
-  const twM = document.getElementById('tableNumberWrapM');
-  if (tw) tw.style.display = dineIn ? 'block' : 'none';
-  if (twM) twM.style.display = dineInM ? 'block' : 'none';
-
   const cc = document.getElementById('changeCalc');
   if (cc) cc.style.display = selectedPayment === 'Cash' ? 'block' : 'none';
   const ccm = document.getElementById('changeCalcM');
@@ -370,8 +370,6 @@ window.setOrderType = function (t, btn) {
   btn.classList.add('active');
   const dw = document.getElementById('deliveryFields');
   if (dw) dw.style.display = t === 'Delivery' ? 'block' : 'none';
-  const tw = document.getElementById('tableNumberWrap');
-  if (tw) tw.style.display = t === 'Dine-in' ? 'block' : 'none';
 };
 window.setOrderTypeM = function (t, btn) {
   selectedOrderTypeM = t;
@@ -379,8 +377,6 @@ window.setOrderTypeM = function (t, btn) {
   btn.classList.add('active');
   const dw = document.getElementById('deliveryFieldsM');
   if (dw) dw.style.display = t === 'Delivery' ? 'block' : 'none';
-  const tw = document.getElementById('tableNumberWrapM');
-  if (tw) tw.style.display = t === 'Dine-in' ? 'block' : 'none';
 };
 
 window.setQuickCash = function (amount, source) {
@@ -461,10 +457,16 @@ window.checkout = async function () {
   const notesBase = document.getElementById(isMobile ? 'orderNotesM' : 'orderNotes').value.trim();
   const platform = document.getElementById(isMobile ? 'deliveryPlatformM' : 'deliveryPlatform')?.value.trim() || '';
   const rider = document.getElementById(isMobile ? 'deliveryRiderM' : 'deliveryRider')?.value.trim() || '';
-  const tableNum = document.getElementById(isMobile ? 'tableNumberM' : 'tableNumber')?.value.trim() || '';
+
+  let autoTable = '';
+  if (orderType === 'Dine-in') {
+    dineInTableCounter++;
+    autoTable = String(dineInTableCounter);
+  }
+
   let notes = notesBase;
-  if (orderType === 'Dine-in' && tableNum) {
-    const tableTag = 'Table: ' + tableNum;
+  if (orderType === 'Dine-in') {
+    const tableTag = 'Table: ' + autoTable;
     notes = notes ? notes + ' | ' + tableTag : tableTag;
   }
   if (orderType === 'Delivery') {
@@ -476,6 +478,7 @@ window.checkout = async function () {
       notes = notes ? notes + ' | ' + extra : extra;
     }
   }
+
   const disc = discountAmt();
   const baseTotal = cartTotal();
   const fee = payment === 'GCash' ? gcashFee(baseTotal) : 0;
@@ -491,14 +494,15 @@ window.checkout = async function () {
     Notes: notes || null,
     DiscountCode: activePromo?.code || null,
     DiscountAmount: disc,
-    GCashFee: fee > 0 ? fee : null,
-    TableNumber: tableNum || null
+    GCashFee: fee > 0 ? fee : null
   };
 
+  const receiptData = { ...orderData, items: cartSnapshot, orderNum: orderCounter, tableNum: autoTable };
+
   if (!navigator.onLine) {
-    saveOfflineOrder({ ...orderData, items: cartSnapshot, orderNum: orderCounter, tableNum });
+    saveOfflineOrder(receiptData);
     showToast('Saved offline! Order #' + orderCounter, 'success');
-    showReceiptFromData({ ...orderData, items: cartSnapshot, orderNum: orderCounter, tableNum }, null);
+    showReceiptFromData(receiptData, null);
     orderCounter++;
     clearCart();
     closeMobileCart();
@@ -534,83 +538,61 @@ window.checkout = async function () {
       DiscountCode: orderData.DiscountCode,
       DiscountAmount: orderData.DiscountAmount
     };
-    if (orderData.GCashFee != null) tryBase.GCashFee = orderData.GCashFee;
     const { data: retryRow, error: retryErr } = await sb.from('Order').insert([tryBase]).select().single();
     if (retryErr || !retryRow) {
       showToast('Failed: ' + (retryErr?.message || msg), 'error');
       console.error('Retry failed:', retryErr);
-      saveOfflineOrder({ ...orderData, items: cartSnapshot, orderNum: orderCounter, tableNum });
+      saveOfflineOrder(receiptData);
       orderCounter++;
       clearCart();
       closeMobileCart();
       return;
     }
-    Object.assign(orderRow || {}, retryRow);
-    const orderRowFinal = retryRow;
-    const orderId2 = orderRowFinal.OrderID;
-    await sb.from('OrderDetails').insert(cartSnapshot.map(i => ({
-      OrderID: orderId2, ProductID: i.id, SizeLabel: i.size || null,
-      Quantity: i.quantity, Price: i.price, Subtotal: i.price * i.quantity
-    })));
-    for (const i of cartSnapshot) {
-      try {
-        const { data: ingData } = await sb.from('Ingredients').select('ItemID,UnitPerServing').eq('ProductID', i.id);
-        if (ingData?.length) {
-          for (const ing of ingData) {
-            const { data: itemRow } = await sb.from('Item').select('UnitQuantity').eq('ItemID', ing.ItemID).single();
-            const curr = parseFloat(itemRow?.UnitQuantity ?? 0) || 0;
-            const deduct = (parseFloat(ing.UnitPerServing) || 0) * i.quantity;
-            const { error: updateErr } = await sb.from('Item').update({ UnitQuantity: Math.max(0, curr - deduct) }).eq('ItemID', ing.ItemID);
-            if (!updateErr) await sb.from('IngredientLog').insert([{ ItemID: ing.ItemID, OrderID: orderId2, ChangeAmt: -deduct, Reason: 'Order' }]);
-          }
-        }
-      } catch (_) {}
-    }
     showToast('Order #' + orderCounter + ' placed! ' + sym() + total.toFixed(2), 'success');
-    showReceiptFromData({ ...orderData, items: cartSnapshot, orderNum: orderCounter, tableNum }, orderId2);
+    showReceiptFromData(receiptData, retryRow.OrderID);
     orderCounter++;
-    await loadProducts();
-    renderProductGrid();
     clearCart();
     closeMobileCart();
+    sb.from('OrderDetails').insert(cartSnapshot.map(i => ({
+      OrderID: retryRow.OrderID, ProductID: i.id, SizeLabel: i.size || null,
+      Quantity: i.quantity, Price: i.price, Subtotal: i.price * i.quantity
+    }))).then(() => deductIngredients(cartSnapshot, retryRow.OrderID));
+    setTimeout(() => { loadProducts().then(renderProductGrid); }, 1500);
     return;
   }
 
   const orderId = orderRow.OrderID;
-  const { error: detailsErr } = await sb.from('OrderDetails').insert(cartSnapshot.map(i => ({
+  showToast('Order #' + orderCounter + ' placed! ' + sym() + total.toFixed(2), 'success');
+  showReceiptFromData(receiptData, orderId);
+  orderCounter++;
+  clearCart();
+  closeMobileCart();
+
+  sb.from('OrderDetails').insert(cartSnapshot.map(i => ({
     OrderID: orderId, ProductID: i.id, SizeLabel: i.size || null,
     Quantity: i.quantity, Price: i.price, Subtotal: i.price * i.quantity
-  })));
+  }))).then(({ error: detailsErr }) => {
+    if (detailsErr) { console.error('OrderDetails failed:', detailsErr); return; }
+    deductIngredients(cartSnapshot, orderId);
+  });
+  setTimeout(() => { loadProducts().then(renderProductGrid); }, 1500);
+};
 
-  if (detailsErr) {
-    showToast('Order saved but items failed: ' + detailsErr.message, 'error');
-    await sb.from('Order').delete().eq('OrderID', orderId);
-    return;
-  }
-
-  for (const i of cartSnapshot) {
+async function deductIngredients(items, orderId) {
+  for (const i of items) {
     try {
       const { data: ingData } = await sb.from('Ingredients').select('ItemID,UnitPerServing').eq('ProductID', i.id);
-      if (ingData?.length) {
-        for (const ing of ingData) {
-          const { data: itemRow } = await sb.from('Item').select('UnitQuantity').eq('ItemID', ing.ItemID).single();
-          const curr = parseFloat(itemRow?.UnitQuantity ?? 0) || 0;
-          const deduct = (parseFloat(ing.UnitPerServing) || 0) * i.quantity;
-          const { error: updateErr } = await sb.from('Item').update({ UnitQuantity: Math.max(0, curr - deduct) }).eq('ItemID', ing.ItemID);
-          if (!updateErr) await sb.from('IngredientLog').insert([{ ItemID: ing.ItemID, OrderID: orderId, ChangeAmt: -deduct, Reason: 'Order' }]);
-        }
+      if (!ingData?.length) continue;
+      for (const ing of ingData) {
+        const { data: itemRow } = await sb.from('Item').select('UnitQuantity').eq('ItemID', ing.ItemID).single();
+        const curr = parseFloat(itemRow?.UnitQuantity ?? 0) || 0;
+        const deduct = (parseFloat(ing.UnitPerServing) || 0) * i.quantity;
+        const { error: updateErr } = await sb.from('Item').update({ UnitQuantity: Math.max(0, curr - deduct) }).eq('ItemID', ing.ItemID);
+        if (!updateErr) await sb.from('IngredientLog').insert([{ ItemID: ing.ItemID, OrderID: orderId, ChangeAmt: -deduct, Reason: 'Order' }]);
       }
     } catch (_) {}
   }
-
-  showToast('Order #' + orderCounter + ' placed! ' + sym() + total.toFixed(2), 'success');
-  showReceiptFromData({ ...orderData, items: cartSnapshot, orderNum: orderCounter, tableNum }, orderId);
-  orderCounter++;
-  await loadProducts();
-  renderProductGrid();
-  clearCart();
-  closeMobileCart();
-};
+}
 
 function saveOfflineOrder(order) {
   const pending = JSON.parse(localStorage.getItem('offline_orders') || '[]');
