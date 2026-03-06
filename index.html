@@ -992,16 +992,21 @@ const S = () => JSON.parse(localStorage.getItem('pos_settings') || '{}');
 const sym = () => S().currency || '₱';
 const isAdmin = () => currentUser && (currentUser.AccessLevel === 'Admin' || currentUser.AccessLevel === 'Manager');
 const groupOrder = [
-  { key: 'viand', label: 'Viand/Main dishes', keywords: ['viand', 'main'] },
-  { key: 'side', label: 'Side dishes', keywords: ['side'] },
-  { key: 'drinks', label: 'Drinks', keywords: ['drink', 'beverage'] },
-  { key: 'desserts', label: 'Desserts', keywords: ['dessert', 'sweet'] },
-  { key: 'breakfast', label: 'Breakfast', keywords: ['breakfast'] },
-  { key: 'combo', label: 'Combo meals', keywords: ['combo'] },
-  { key: 'kids', label: 'Kids meals', keywords: ['kid'] },
-  { key: 'vegetarian', label: 'Vegetarian', keywords: ['veg', 'vegetarian'] },
-  { key: 'specials', label: 'Specials', keywords: ['special'] },
-  { key: 'others', label: 'Others', keywords: [] }
+  { key: 'rice',        label: 'Rice Bowls',      keywords: ['rice bowl'] },
+  { key: 'breakfast',   label: 'Breakfast',        keywords: ['breakfast meal'] },
+  { key: 'snacks',      label: 'Snacks',           keywords: ['snack'] },
+  { key: 'barkada',     label: 'Barkada Treats',   keywords: ['barkada treat'] },
+  { key: 'panwich',     label: 'Panwich',          keywords: ['panwich'] },
+  { key: 'waffle',      label: 'Belgian Waffle',   keywords: ['belgian waffle'] },
+  { key: 'milktea',     label: 'Milktea',          keywords: ['milktea'] },
+  { key: 'milkshake',   label: 'Milkshake',        keywords: ['milkshake'] },
+  { key: 'fruitshake',  label: 'Fruitshake',       keywords: ['fruitshake'] },
+  { key: 'lava',        label: 'Lava Latte',       keywords: ['lava latte'] },
+  { key: 'frappe',      label: 'Frappuccino',      keywords: ['frappuccino'] },
+  { key: 'icecoffee',   label: 'Ice Coffee',       keywords: ['ice coffee'] },
+  { key: 'fruittea',    label: 'Fruit Tea',        keywords: ['fruit tea'] },
+  { key: 'drinks',      label: 'Drinks',           keywords: ['drink'] },
+  { key: 'others',      label: 'Others',           keywords: [] }
 ];
 
 window.doLogin = async function() {
@@ -1297,11 +1302,9 @@ function getGroupLabel(catName) {
   const lower = (catName || '').toLowerCase();
   for (const g of groupOrder) {
     if (g.key === 'others') continue;
+    if (lower === g.label.toLowerCase()) return g.label;
     if (g.keywords.some(k => lower.includes(k))) return g.label;
   }
-  if (!lower) return 'Others';
-  const direct = groupOrder.find(g => g.label.toLowerCase() === lower);
-  if (direct) return direct.label;
   return 'Others';
 }
 
