@@ -250,7 +250,7 @@ window.syncOfflineOrders = async function () {
       EmployeeID: o.EmployeeID, OrderDateTime: o.saved_at, OrderType: o.OrderType,
       PaymentMethod: o.PaymentMethod, TotalAmount: o.TotalAmount, Status: 'Completed',
       Notes: o.Notes, DiscountCode: o.DiscountCode, DiscountAmount: o.DiscountAmount,
-      GCashFee: o.GCashFee || null, TableNumber: o.TableNumber || null
+      GCashFee: o.GCashFee || null
     }]).select().single();
     if (!error && row) {
       await sb.from('OrderDetails').insert(o.items.map(function (i) { return {

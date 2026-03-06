@@ -517,7 +517,6 @@ window.checkout = async function () {
     DiscountAmount: orderData.DiscountAmount
   };
   if (orderData.GCashFee != null) insertPayload.GCashFee = orderData.GCashFee;
-  if (orderData.TableNumber) insertPayload.TableNumber = orderData.TableNumber;
 
   const { data: orderRow, error: orderErr } = await sb.from('Order').insert([insertPayload]).select().single();
   if (orderErr || !orderRow) {
@@ -535,6 +534,7 @@ window.checkout = async function () {
       DiscountCode: orderData.DiscountCode,
       DiscountAmount: orderData.DiscountAmount
     };
+    if (orderData.GCashFee != null) tryBase.GCashFee = orderData.GCashFee;
     const { data: retryRow, error: retryErr } = await sb.from('Order').insert([tryBase]).select().single();
     if (retryErr || !retryRow) {
       showToast('Failed: ' + (retryErr?.message || msg), 'error');
