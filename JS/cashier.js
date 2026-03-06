@@ -3,6 +3,7 @@ let allProducts = [];
 let allCategories = [];
 let allPromos = [];
 let allSizes = [];
+let popularProductIds = [];
 let selectedCategory = 'All';
 let activePromo = null;
 let selectedPayment = 'Cash';
@@ -32,14 +33,34 @@ const groupOrder = [
   { label: 'Others', keywords: [] }
 ];
 
+const ingredientGroups = [
+  { label: '🥩 Meats', keywords: ['meat','pork','beef','chicken','fish','liempo','bacon','longganisa','hotdog','tuna','bangus','tilapia','shrimp'] },
+  { label: '🥦 Vegetables', keywords: ['vegetable','veggie','tomato','onion','garlic','cabbage','carrot','potato','kangkong','spinach','lettuce','pepper','ginger','leek','celery','mushroom'] },
+  { label: '🍚 Grains & Starches', keywords: ['rice','flour','bread','pasta','noodle','pandesal','waffle mix','cornstarch','starch'] },
+  { label: '🥛 Dairy & Eggs', keywords: ['milk','cream','egg','butter','cheese','yogurt'] },
+  { label: '🍬 Sweeteners & Syrup', keywords: ['sugar','syrup','honey','brown sugar','condensed','caramel','chocolate','choco'] },
+  { label: '🫙 Sauces & Condiments', keywords: ['sauce','vinegar','soy','ketchup','oyster','fish sauce','patis','mayo','mustard','dressing','oil','lard'] },
+  { label: '🧂 Seasonings & Spices', keywords: ['salt','pepper','seasoning','spice','powder','paprika','cumin','bay','msg','magic sarap','knorr','star anise'] },
+  { label: '🧋 Beverages & Base', keywords: ['tea','coffee','juice','water','ice','soda','milk tea','base','concentrate'] },
+  { label: '📦 Packaging', keywords: ['cup','box','bag','straw','container','wrap','foil','tray','napkin','tissue','spoon','fork','lid'] },
+  { label: '🛒 Others', keywords: [] }
+];
+
+function getIngredientGroup(name) {
+  const lower = (name || '').toLowerCase();
+  for (const g of ingredientGroups) {
+    if (g.label === '🛒 Others') continue;
+    if (g.keywords.some(k => lower.includes(k))) return g.label;
+  }
+  return '🛒 Others';
+}
+
 function gcashFee(base) {
   if (!base || base <= 0) return 0;
   return Math.min(40, Math.floor(base / 50) * 2);
 }
 
-function cartSubtotal() {
-  return cart.reduce((s, i) => s + i.price * i.quantity, 0);
-}
+function cartSubtotal() { return cart.reduce((s, i) => s + i.price * i.quantity, 0); }
 
 function cartTotal() {
   const sub = cartSubtotal();
@@ -49,9 +70,7 @@ function cartTotal() {
     : Math.max(0, sub - activePromo.value);
 }
 
-function discountAmt() {
-  return cartSubtotal() - cartTotal();
-}
+function discountAmt() { return cartSubtotal() - cartTotal(); }
 
 function cartTotalWithFees(payment) {
   const base = cartTotal();
@@ -69,7 +88,7 @@ function getGroupLabel(catName) {
 }
 
 async function initPOS() {
-  await Promise.all([loadCategories(), loadProducts(), loadPromos()]);
+  await Promise.all([loadCategories(), loadProducts(), loadPromos(), loadPopularProducts()]);
   renderCatFilters();
   renderProductGrid();
   updateOfflineBadge();
@@ -98,6 +117,16 @@ async function loadProducts() {
 async function loadPromos() {
   const { data } = await sb.from('Promo').select('*').eq('IsActive', true);
   allPromos = data || [];
+}
+
+async function loadPopularProducts() {
+  try {
+    const { data } = await sb.from('OrderDetails').select('ProductID').limit(500);
+    if (!data?.length) return;
+    const counts = {};
+    data.forEach(d => { counts[d.ProductID] = (counts[d.ProductID] || 0) + 1; });
+    popularProductIds = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([id]) => parseInt(id, 10));
+  } catch (_) {}
 }
 
 window.filterProducts = function () { renderProductGrid(); };
@@ -130,6 +159,18 @@ function renderProductGrid() {
   });
   if (!filtered.length) { grid.innerHTML = '<div class="no-products">No items found.</div>'; return; }
   grid.innerHTML = '';
+
+  if (popularProductIds.length && selectedCategory === 'All' && !q) {
+    const popularItems = filtered.filter(p => popularProductIds.includes(p.ProductID));
+    if (popularItems.length) {
+      const ph = document.createElement('div');
+      ph.className = 'group-header popular-header';
+      ph.innerHTML = '⭐ Popular';
+      grid.appendChild(ph);
+      popularItems.forEach(p => grid.appendChild(buildProductCard(p)));
+    }
+  }
+
   const groups = {};
   filtered.forEach(p => {
     const label = getGroupLabel(p.Category?.CategoryName || '');
@@ -143,18 +184,25 @@ function renderProductGrid() {
     header.className = 'group-header';
     header.textContent = label;
     grid.appendChild(header);
-    groups[label].forEach(p => {
-      const stock = p.Inventory?.QuantityAvailable ?? p.StockQuantity ?? 99;
-      const sizes = allSizes.filter(s => s.ProductID === p.ProductID);
-      const low = stock > 0 && stock <= 5;
-      const out = stock === 0;
-      const d = document.createElement('div');
-      d.className = 'product-card' + (low ? ' low-stock' : '') + (out ? ' out-stock' : '');
-      d.innerHTML = `<div class="p-name">${escapeHtml(p.Name)}</div><div class="p-price">${sym()}${parseFloat(p.BasePrice).toFixed(2)}</div><div class="p-cat">${escapeHtml(p.Category?.CategoryName || '')}</div>${sizes.length ? `<div class="p-size-hint">+ ${sizes.length} sizes</div>` : ''}${low ? `<div class="p-stock-badge">Low: ${stock}</div>` : ''}${out ? `<div class="p-stock-badge" style="color:var(--red)">Out of stock</div>` : ''}`;
-      d.onclick = () => sizes.length ? openSizeModal(p) : addToCart(p, null, null);
-      grid.appendChild(d);
-    });
+    groups[label].forEach(p => grid.appendChild(buildProductCard(p)));
   });
+}
+
+function buildProductCard(p) {
+  const stock = p.Inventory?.QuantityAvailable ?? p.StockQuantity ?? 99;
+  const sizes = allSizes.filter(s => s.ProductID === p.ProductID);
+  const low = stock > 0 && stock <= 5;
+  const out = stock === 0;
+  const d = document.createElement('div');
+  d.className = 'product-card' + (low ? ' low-stock' : '') + (out ? ' out-stock' : '');
+  d.innerHTML = '<div class="p-name">' + escapeHtml(p.Name) + '</div>' +
+    '<div class="p-price">' + sym() + parseFloat(p.BasePrice).toFixed(2) + '</div>' +
+    '<div class="p-cat">' + escapeHtml(p.Category?.CategoryName || '') + '</div>' +
+    (sizes.length ? '<div class="p-size-hint">+ ' + sizes.length + ' sizes</div>' : '') +
+    (low ? '<div class="p-stock-badge">Low: ' + stock + '</div>' : '') +
+    (out ? '<div class="p-stock-badge" style="color:var(--red)">Out of stock</div>' : '');
+  d.onclick = () => sizes.length ? openSizeModal(p) : addToCart(p, null, null);
+  return d;
 }
 
 window.openSizeModal = function (p) {
@@ -163,13 +211,13 @@ window.openSizeModal = function (p) {
   list.innerHTML = '';
   const btn0 = document.createElement('button');
   btn0.className = 'size-btn';
-  btn0.innerHTML = `<span>Regular</span><span class="size-price">${sym()}${parseFloat(p.BasePrice).toFixed(2)}</span>`;
+  btn0.innerHTML = '<span>Regular</span><span class="size-price">' + sym() + parseFloat(p.BasePrice).toFixed(2) + '</span>';
   btn0.onclick = () => { addToCart(p, null, null); closeSizeModal(); };
   list.appendChild(btn0);
   allSizes.filter(s => s.ProductID === p.ProductID).forEach(s => {
     const btn = document.createElement('button');
     btn.className = 'size-btn';
-    btn.innerHTML = `<span>${escapeHtml(s.Size)}</span><span class="size-price">${sym()}${parseFloat(s.Price).toFixed(2)}</span>`;
+    btn.innerHTML = '<span>' + escapeHtml(s.Size) + '</span><span class="size-price">' + sym() + parseFloat(s.Price).toFixed(2) + '</span>';
     btn.onclick = () => { addToCart(p, s.Size, parseFloat(s.Price)); closeSizeModal(); };
     list.appendChild(btn);
   });
@@ -179,7 +227,7 @@ window.closeSizeModal = function () { document.getElementById('sizeModal').class
 
 function addToCart(p, sizeLabel, sizePrice) {
   const price = sizePrice !== null ? sizePrice : parseFloat(p.BasePrice);
-  const key = `${p.ProductID}__${sizeLabel || ''}`;
+  const key = p.ProductID + '__' + (sizeLabel || '');
   const ex = cart.find(i => i.key === key);
   if (ex) { ex.quantity++; }
   else { cart.push({ key, id: p.ProductID, name: p.Name, size: sizeLabel, price, quantity: 1, mods: [] }); }
@@ -202,16 +250,16 @@ window.removeFromCart = function (key) {
 window.clearCart = function () {
   cart = [];
   activePromo = null;
-  ['promoInput', 'orderNotes', 'cashReceived', 'deliveryPlatform', 'deliveryRider',
-    'promoInputM', 'orderNotesM', 'cashReceivedM', 'deliveryPlatformM', 'deliveryRiderM']
+  ['promoInput','orderNotes','cashReceived','tableNumber','deliveryPlatform','deliveryRider',
+   'promoInputM','orderNotesM','cashReceivedM','tableNumberM','deliveryPlatformM','deliveryRiderM']
     .forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
-  ['promoMsg', 'promoMsgM'].forEach(id => { const e = document.getElementById(id); if (e) e.textContent = ''; });
+  ['promoMsg','promoMsgM'].forEach(id => { const e = document.getElementById(id); if (e) e.textContent = ''; });
   renderCart();
 };
 
 function formatModifiers(item) {
   if (!item.mods || !item.mods.length) return '';
-  return `<div class="ci-sub" style="font-size:11px;">${item.mods.map(m => `${m.delta > 0 ? '+' : ''}${m.delta} ${escapeHtml(m.label)}`).join(' | ')}</div>`;
+  return '<div class="ci-sub" style="font-size:11px;">' + item.mods.map(m => (m.delta > 0 ? '+' : '') + m.delta + ' ' + escapeHtml(m.label)).join(' | ') + '</div>';
 }
 
 function renderCart() {
@@ -221,9 +269,26 @@ function renderCart() {
   const count = cart.reduce((n, i) => n + i.quantity, 0);
   const html = !cart.length
     ? '<div class="cart-empty">No items yet.<br>Tap a dish to add.</div>'
-    : cart.map(i => `<div class="cart-item"><div style="flex:1"><div class="ci-name">${escapeHtml(i.name)}</div>${i.size ? `<div class="ci-size">${escapeHtml(i.size)}</div>` : ''}<div class="ci-sub">${s}${i.price.toFixed(2)} each</div>${formatModifiers(i)}</div><div class="qty-ctrl"><button class="qty-btn" onclick="changeQty('${i.key}',-1)">−</button><span class="qty-val">${i.quantity}</span><button class="qty-btn" onclick="changeQty('${i.key}',1)">+</button></div><div class="ci-total">${s}${(i.price * i.quantity).toFixed(2)}</div><button class="ci-del" onclick="removeFromCart('${i.key}')">×</button><button class="qty-btn" onclick="editModifiers('${i.key}')" style="margin-left:4px;" title="Add modifier">⚙</button></div>`).join('');
+    : cart.map(i =>
+        '<div class="cart-item">' +
+        '<div style="flex:1;min-width:0;">' +
+        '<div class="ci-name">' + escapeHtml(i.name) + '</div>' +
+        (i.size ? '<div class="ci-size">' + escapeHtml(i.size) + '</div>' : '') +
+        '<div class="ci-sub">' + s + i.price.toFixed(2) + ' each</div>' +
+        formatModifiers(i) +
+        '</div>' +
+        '<div class="qty-ctrl">' +
+        '<button class="qty-btn" onclick="changeQty(\'' + i.key + '\',-1)">−</button>' +
+        '<span class="qty-val">' + i.quantity + '</span>' +
+        '<button class="qty-btn" onclick="changeQty(\'' + i.key + '\',1)">+</button>' +
+        '</div>' +
+        '<div class="ci-total">' + s + (i.price * i.quantity).toFixed(2) + '</div>' +
+        '<button class="ci-del" onclick="removeFromCart(\'' + i.key + '\')">×</button>' +
+        '<button class="qty-btn" onclick="editModifiers(\'' + i.key + '\')" style="margin-left:4px;" title="Modifier">⚙</button>' +
+        '</div>'
+      ).join('');
 
-  ['cartItems', 'cartItemsMobile'].forEach(id => { const e = document.getElementById(id); if (e) e.innerHTML = html; });
+  ['cartItems','cartItemsMobile'].forEach(id => { const e = document.getElementById(id); if (e) e.innerHTML = html; });
 
   const feeD = selectedPayment === 'GCash' ? gcashFee(baseTotal) : 0;
   const feeM = selectedPaymentM === 'GCash' ? gcashFee(baseTotal) : 0;
@@ -235,19 +300,26 @@ function renderCart() {
   const ctMEl = document.getElementById('cartTotalM');
   if (ctMEl) ctMEl.textContent = totalMobile.toFixed(2);
 
-  ['discountLine', 'discountLineM'].forEach(id => {
+  ['discountLine','discountLineM'].forEach(id => {
     const e = document.getElementById(id);
     if (!e) return;
     e.style.display = (activePromo && disc > 0) ? 'block' : 'none';
-    if (activePromo && disc > 0) e.textContent = `− ${s}${disc.toFixed(2)} (${activePromo.code})`;
+    if (activePromo && disc > 0) e.textContent = '− ' + s + disc.toFixed(2) + ' (' + activePromo.code + ')';
   });
 
-  [['feeLine', feeD], ['feeLineM', feeM]].forEach(([id, fee]) => {
+  [['feeLine',feeD],['feeLineM',feeM]].forEach(([id,fee]) => {
     const e = document.getElementById(id);
     if (!e) return;
     e.style.display = fee > 0 ? 'block' : 'none';
-    if (fee > 0) e.textContent = `GCash fee: + ${s}${fee.toFixed(2)}`;
+    if (fee > 0) e.textContent = 'GCash fee: + ' + s + fee.toFixed(2);
   });
+
+  const dineIn = selectedOrderType === 'Dine-in';
+  const dineInM = selectedOrderTypeM === 'Dine-in';
+  const tw = document.getElementById('tableNumberWrap');
+  const twM = document.getElementById('tableNumberWrapM');
+  if (tw) tw.style.display = dineIn ? 'block' : 'none';
+  if (twM) twM.style.display = dineInM ? 'block' : 'none';
 
   const cc = document.getElementById('changeCalc');
   if (cc) cc.style.display = selectedPayment === 'Cash' ? 'block' : 'none';
@@ -296,15 +368,26 @@ window.setOrderType = function (t, btn) {
   selectedOrderType = t;
   document.querySelectorAll('.cart-panel .otype-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  const wrap = document.getElementById('deliveryFields');
-  if (wrap) wrap.style.display = t === 'Delivery' ? 'block' : 'none';
+  const dw = document.getElementById('deliveryFields');
+  if (dw) dw.style.display = t === 'Delivery' ? 'block' : 'none';
+  const tw = document.getElementById('tableNumberWrap');
+  if (tw) tw.style.display = t === 'Dine-in' ? 'block' : 'none';
 };
 window.setOrderTypeM = function (t, btn) {
   selectedOrderTypeM = t;
   document.querySelectorAll('.cart-drawer .otype-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  const wrap = document.getElementById('deliveryFieldsM');
-  if (wrap) wrap.style.display = t === 'Delivery' ? 'block' : 'none';
+  const dw = document.getElementById('deliveryFieldsM');
+  if (dw) dw.style.display = t === 'Delivery' ? 'block' : 'none';
+  const tw = document.getElementById('tableNumberWrapM');
+  if (tw) tw.style.display = t === 'Dine-in' ? 'block' : 'none';
+};
+
+window.setQuickCash = function (amount, source) {
+  const id = source === 'mobile' ? 'cashReceivedM' : 'cashReceived';
+  const el = document.getElementById(id);
+  if (el) el.value = amount;
+  if (source === 'mobile') calcChangeM(); else calcChange();
 };
 
 window.calcChange = function () {
@@ -332,7 +415,7 @@ function applyPromoCode(code, msgId) {
     return;
   }
   activePromo = { code: promo.Code, type: promo.Type, value: parseFloat(promo.Value) };
-  if (msg) { msg.style.color = 'var(--green)'; msg.textContent = promo.Type === 'percent' ? `✓ ${promo.Value}% off!` : `✓ ${sym()}${promo.Value} off!`; }
+  if (msg) { msg.style.color = 'var(--green)'; msg.textContent = promo.Type === 'percent' ? '✓ ' + promo.Value + '% off!' : '✓ ' + sym() + promo.Value + ' off!'; }
   renderCart();
 }
 window.applyPromo = function () { applyPromoCode(document.getElementById('promoInput').value.trim(), 'promoMsg'); };
@@ -345,6 +428,7 @@ window.openCheckoutModal = function (source) {
   const payment = isMobile ? selectedPaymentM : selectedPayment;
   const orderType = isMobile ? selectedOrderTypeM : selectedOrderType;
   const notes = document.getElementById(isMobile ? 'orderNotesM' : 'orderNotes').value.trim();
+  const tableNum = document.getElementById(isMobile ? 'tableNumberM' : 'tableNumber')?.value.trim() || '';
   const sub = cartSubtotal();
   const disc = discountAmt();
   const baseTotal = cartTotal();
@@ -353,16 +437,18 @@ window.openCheckoutModal = function (source) {
   const s = sym();
   const cash = parseFloat(document.getElementById(isMobile ? 'cashReceivedM' : 'cashReceived')?.value) || 0;
   const change = payment === 'Cash' ? Math.max(0, cash - total) : null;
-  const feeLine = fee > 0 ? `<span style="color:var(--text-muted)">GCash fee: + ${s}${fee.toFixed(2)}</span><br>` : '';
+  const feeHtml = fee > 0 ? '<span style="color:var(--text-muted)">GCash fee: + ' + s + fee.toFixed(2) + '</span><br>' : '';
+  const tableHtml = tableNum ? '<span style="color:var(--amber)">🪑 Table ' + escapeHtml(tableNum) + '</span><br>' : '';
   document.getElementById('modalBody').innerHTML =
-    `<strong>Order #${orderCounter}</strong> · ${escapeHtml(orderType)}<br>` +
-    cart.map(i => `${escapeHtml(i.name)}${i.size ? ` (${escapeHtml(i.size)})` : ''} × ${i.quantity} = ${s}${(i.price * i.quantity).toFixed(2)}`).join('<br>') +
-    `<hr style="border-color:#3d2b14;margin:10px 0;">` +
-    (disc > 0 ? `<span style="color:var(--text-muted)">Subtotal: ${s}${sub.toFixed(2)}</span><br><span style="color:var(--green)">Discount: − ${s}${disc.toFixed(2)}</span><br>` : `<span style="color:var(--text-muted)">Subtotal: ${s}${sub.toFixed(2)}</span><br>`) +
-    feeLine +
-    `<strong>Total: ${s}${total.toFixed(2)}</strong><br>Payment: ${escapeHtml(payment)}` +
-    (notes ? `<br>Notes: ${escapeHtml(notes)}` : '') +
-    (change !== null ? `<br>Change: <strong style="color:var(--green)">${s}${change.toFixed(2)}</strong>` : '');
+    '<strong>Order #' + orderCounter + '</strong> · ' + escapeHtml(orderType) + '<br>' +
+    tableHtml +
+    cart.map(i => escapeHtml(i.name) + (i.size ? ' (' + escapeHtml(i.size) + ')' : '') + ' × ' + i.quantity + ' = ' + s + (i.price * i.quantity).toFixed(2)).join('<br>') +
+    '<hr style="border-color:#3d2b14;margin:10px 0;">' +
+    (disc > 0 ? '<span style="color:var(--text-muted)">Subtotal: ' + s + sub.toFixed(2) + '</span><br><span style="color:var(--green)">Discount: − ' + s + disc.toFixed(2) + '</span><br>' : '<span style="color:var(--text-muted)">Subtotal: ' + s + sub.toFixed(2) + '</span><br>') +
+    feeHtml +
+    '<strong>Total: ' + s + total.toFixed(2) + '</strong><br>Payment: ' + escapeHtml(payment) +
+    (notes ? '<br>Notes: ' + escapeHtml(notes) : '') +
+    (change !== null ? '<br>Change: <strong style="color:var(--green)">' + s + change.toFixed(2) + '</strong>' : '');
   document.getElementById('checkoutModal').classList.add('open');
 };
 window.closeModal = function () { document.getElementById('checkoutModal').classList.remove('open'); };
@@ -375,7 +461,12 @@ window.checkout = async function () {
   const notesBase = document.getElementById(isMobile ? 'orderNotesM' : 'orderNotes').value.trim();
   const platform = document.getElementById(isMobile ? 'deliveryPlatformM' : 'deliveryPlatform')?.value.trim() || '';
   const rider = document.getElementById(isMobile ? 'deliveryRiderM' : 'deliveryRider')?.value.trim() || '';
+  const tableNum = document.getElementById(isMobile ? 'tableNumberM' : 'tableNumber')?.value.trim() || '';
   let notes = notesBase;
+  if (orderType === 'Dine-in' && tableNum) {
+    const tableTag = 'Table: ' + tableNum;
+    notes = notes ? notes + ' | ' + tableTag : tableTag;
+  }
   if (orderType === 'Delivery') {
     const parts = [];
     if (platform) parts.push('Platform: ' + platform);
@@ -400,13 +491,14 @@ window.checkout = async function () {
     Notes: notes || null,
     DiscountCode: activePromo?.code || null,
     DiscountAmount: disc,
-    GCashFee: fee > 0 ? fee : null
+    GCashFee: fee > 0 ? fee : null,
+    TableNumber: tableNum || null
   };
 
   if (!navigator.onLine) {
-    saveOfflineOrder({ ...orderData, items: cartSnapshot, orderNum: orderCounter });
-    showToast(`Saved offline! Order #${orderCounter}`, 'success');
-    showReceiptFromData({ ...orderData, items: cartSnapshot, orderNum: orderCounter }, null);
+    saveOfflineOrder({ ...orderData, items: cartSnapshot, orderNum: orderCounter, tableNum });
+    showToast('Saved offline! Order #' + orderCounter, 'success');
+    showReceiptFromData({ ...orderData, items: cartSnapshot, orderNum: orderCounter, tableNum }, null);
     orderCounter++;
     clearCart();
     closeMobileCart();
@@ -415,7 +507,7 @@ window.checkout = async function () {
 
   const { data: orderRow, error: orderErr } = await sb.from('Order').insert([orderData]).select().single();
   if (orderErr || !orderRow) {
-    saveOfflineOrder({ ...orderData, items: cartSnapshot, orderNum: orderCounter });
+    saveOfflineOrder({ ...orderData, items: cartSnapshot, orderNum: orderCounter, tableNum });
     showToast('Saved offline — will sync later', 'error');
     orderCounter++;
     clearCart();
@@ -450,8 +542,8 @@ window.checkout = async function () {
     } catch (_) {}
   }
 
-  showToast(`Order #${orderCounter} placed! ${sym()}${total.toFixed(2)}`, 'success');
-  showReceiptFromData({ ...orderData, items: cartSnapshot, orderNum: orderCounter }, orderId);
+  showToast('Order #' + orderCounter + ' placed! ' + sym() + total.toFixed(2), 'success');
+  showReceiptFromData({ ...orderData, items: cartSnapshot, orderNum: orderCounter, tableNum }, orderId);
   orderCounter++;
   await loadProducts();
   renderProductGrid();
@@ -473,17 +565,53 @@ function showReceiptFromData(order, orderId) {
   const items = order.items || [];
   const sub = items.reduce((n, i) => n + i.price * i.quantity, 0);
   const fee = order.GCashFee || 0;
+  const tableNum = order.tableNum || order.TableNumber || '';
   const discountLine = (order.DiscountAmount || 0) > 0
-    ? `<div style="display:flex;justify-content:space-between;color:green;"><span>Discount (${escapeHtml(order.DiscountCode)})</span><span>− ${s}${parseFloat(order.DiscountAmount).toFixed(2)}</span></div>`
+    ? '<div style="display:flex;justify-content:space-between;color:green;font-size:12px;"><span>Discount (' + escapeHtml(order.DiscountCode) + ')</span><span>− ' + s + parseFloat(order.DiscountAmount).toFixed(2) + '</span></div>'
     : '';
   const feeLine = fee > 0
-    ? `<div style="display:flex;justify-content:space-between;color:#555;"><span>GCash fee</span><span>+ ${s}${parseFloat(fee).toFixed(2)}</span></div>`
+    ? '<div style="display:flex;justify-content:space-between;color:#555;font-size:12px;"><span>GCash fee</span><span>+ ' + s + parseFloat(fee).toFixed(2) + '</span></div>'
     : '';
+  const tableLine = tableNum ? '<div style="font-size:12px;font-weight:700;color:#333;margin-top:4px;">🪑 Table ' + escapeHtml(String(tableNum)) + '</div>' : '';
   const itemRows = items.map(i => {
-    const mods = i.mods?.length ? `<div style="font-size:10px;color:#666;">${i.mods.map(m => `${m.delta > 0 ? '+' : ''}${m.delta} ${escapeHtml(m.label)}`).join(' | ')}</div>` : '';
-    return `<tr><td>${escapeHtml(i.name)}${i.size ? ` (${escapeHtml(i.size)})` : ''}${mods}</td><td style="text-align:center">${i.quantity}</td><td style="text-align:right">${s}${(i.price * i.quantity).toFixed(2)}</td></tr>`;
+    const mods = i.mods?.length ? '<div style="font-size:10px;color:#666;">' + i.mods.map(m => (m.delta > 0 ? '+' : '') + m.delta + ' ' + escapeHtml(m.label)).join(' | ') + '</div>' : '';
+    return '<tr>' +
+      '<td style="padding:4px 0;">' + escapeHtml(i.name) + (i.size ? ' (' + escapeHtml(i.size) + ')' : '') + mods + '</td>' +
+      '<td style="text-align:center;padding:4px 6px;white-space:nowrap;">' + i.quantity + '</td>' +
+      '<td style="text-align:right;padding:4px 0;white-space:nowrap;">' + s + (i.price * i.quantity).toFixed(2) + '</td>' +
+      '</tr>';
   }).join('');
-  document.getElementById('receiptContent').innerHTML = `<div style="font-family:monospace;font-size:13px;color:#1a1008;padding:8px;"><div style="text-align:center;margin-bottom:12px;"><div style="font-size:17px;font-weight:bold;">${escapeHtml(settings.name || "Mommy's FoodHub")}</div>${settings.address ? `<div style="font-size:11px;color:#666;">${escapeHtml(settings.address)}</div>` : ''}${settings.contact ? `<div style="font-size:11px;color:#666;">${escapeHtml(settings.contact)}</div>` : ''}<div style="font-size:11px;color:#666;">${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div><div style="font-size:11px;color:#666;">Cashier: ${escapeHtml(currentUser?.Name || '—')} | Order #${order.orderNum || orderId || '—'}</div><div style="font-size:11px;color:#666;">${escapeHtml(order.OrderType)}</div>${!orderId ? '<div style="font-size:11px;color:#e66;">⚠ Offline Order</div>' : ''}</div><hr style="border:1px dashed #ccc;margin:8px 0;"><table style="width:100%;border-collapse:collapse;"><thead><tr style="font-size:11px;color:#999;"><th style="text-align:left">Item</th><th style="text-align:center">Qty</th><th style="text-align:right">Amt</th></tr></thead><tbody>${itemRows}</tbody></table><hr style="border:1px dashed #ccc;margin:8px 0;"><div style="display:flex;justify-content:space-between;"><span>Subtotal</span><span>${s}${sub.toFixed(2)}</span></div>${discountLine}${feeLine}<div style="display:flex;justify-content:space-between;font-weight:bold;font-size:15px;margin-top:6px;"><span>TOTAL</span><span>${s}${parseFloat(order.TotalAmount).toFixed(2)}</span></div><div style="display:flex;justify-content:space-between;font-size:12px;color:#555;margin-top:4px;"><span>Payment</span><span>${escapeHtml(order.PaymentMethod)}</span></div>${order.Notes ? `<div style="margin-top:6px;font-size:11px;color:#555;"><em>Notes: ${escapeHtml(order.Notes)}</em></div>` : ''}<hr style="border:1px dashed #ccc;margin:8px 0;"><div style="text-align:center;font-size:11px;color:#999;">${escapeHtml(settings.footer || 'Thank you for dining with us! 🙏')}</div></div>`;
+
+  document.getElementById('receiptContent').innerHTML =
+    '<div style="font-family:monospace;font-size:13px;color:#1a1008;padding:8px;">' +
+    '<div style="text-align:center;margin-bottom:12px;">' +
+    '<div style="font-size:17px;font-weight:bold;">' + escapeHtml(settings.name || "Mommy's FoodHub") + '</div>' +
+    (settings.address ? '<div style="font-size:11px;color:#666;">' + escapeHtml(settings.address) + '</div>' : '') +
+    (settings.contact ? '<div style="font-size:11px;color:#666;">' + escapeHtml(settings.contact) + '</div>' : '') +
+    '<div style="font-size:11px;color:#666;">' + now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '</div>' +
+    '<div style="font-size:11px;color:#666;">Cashier: ' + escapeHtml(currentUser?.Name || '—') + ' | Order #' + (order.orderNum || orderId || '—') + '</div>' +
+    '<div style="font-size:11px;color:#666;">' + escapeHtml(order.OrderType) + '</div>' +
+    tableLine +
+    (!orderId ? '<div style="font-size:11px;color:#e66;">⚠ Offline Order</div>' : '') +
+    '</div>' +
+    '<hr style="border:1px dashed #ccc;margin:8px 0;">' +
+    '<table style="width:100%;border-collapse:collapse;">' +
+    '<thead><tr style="font-size:11px;color:#999;border-bottom:1px dashed #ccc;">' +
+    '<th style="text-align:left;padding-bottom:4px;">Item</th>' +
+    '<th style="text-align:center;padding-bottom:4px;">Qty</th>' +
+    '<th style="text-align:right;padding-bottom:4px;">Amt</th>' +
+    '</tr></thead>' +
+    '<tbody>' + itemRows + '</tbody>' +
+    '</table>' +
+    '<hr style="border:1px dashed #ccc;margin:8px 0;">' +
+    '<div style="display:flex;justify-content:space-between;font-size:13px;"><span>Subtotal</span><span>' + s + sub.toFixed(2) + '</span></div>' +
+    discountLine + feeLine +
+    '<div style="display:flex;justify-content:space-between;font-weight:bold;font-size:15px;margin-top:6px;border-top:2px solid #333;padding-top:6px;"><span>TOTAL</span><span>' + s + parseFloat(order.TotalAmount).toFixed(2) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;font-size:12px;color:#555;margin-top:4px;"><span>Payment</span><span>' + escapeHtml(order.PaymentMethod) + '</span></div>' +
+    (order.Notes ? '<div style="margin-top:6px;font-size:11px;color:#555;word-break:break-word;"><em>Notes: ' + escapeHtml(order.Notes) + '</em></div>' : '') +
+    '<hr style="border:1px dashed #ccc;margin:8px 0;">' +
+    '<div style="text-align:center;font-size:11px;color:#999;">' + escapeHtml(settings.footer || 'Thank you for dining with us! 🙏') + '</div>' +
+    '</div>';
   document.getElementById('receiptModal').classList.add('open');
 }
 window.closeReceipt = function () { document.getElementById('receiptModal').classList.remove('open'); };
@@ -510,15 +638,32 @@ window.filterKitchen = function (status, btn) {
   renderKitchenGrid();
 };
 
+function parseTableFromNotes(notes) {
+  if (!notes) return '';
+  const m = notes.match(/Table:\s*([^|]+)/i);
+  return m ? m[1].trim() : '';
+}
+
 function renderKitchenGrid() {
   const grid = document.getElementById('kitchenGrid');
   const filtered = kitchenFilter === 'all' ? kitchenOrders : kitchenOrders.filter(o => o.Status === kitchenFilter);
   if (!filtered.length) { grid.innerHTML = '<div style="color:var(--text-muted);padding:30px;text-align:center;">No orders found.</div>'; return; }
   grid.innerHTML = filtered.map(o => {
     const d = new Date(o.OrderDateTime);
-    const items = (o.OrderDetails || []).map(d => `<strong>${escapeHtml(d.Product?.Name || '?')}</strong>${d.SizeLabel ? ` (${escapeHtml(d.SizeLabel)})` : ''} ×${d.Quantity}`).join('<br>');
+    const items = (o.OrderDetails || []).map(d => '<strong>' + escapeHtml(d.Product?.Name || '?') + '</strong>' + (d.SizeLabel ? ' (' + escapeHtml(d.SizeLabel) + ')' : '') + ' ×' + d.Quantity).join('<br>');
     const next = nextStatuses(o.Status);
-    return `<div class="kitchen-card status-${o.Status}"><div class="kcard-header"><div><div class="kcard-num">Order #${o.OrderID}</div><div class="kcard-type">${escapeHtml(o.OrderType)} · ${escapeHtml(o.PaymentMethod)}</div></div><div class="kcard-status ${o.Status}">${statusEmoji(o.Status)} ${o.Status}</div></div><div class="kcard-items">${items || '—'}</div><div class="kcard-time">🕐 ${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · ${escapeHtml(o.Employee?.Name || '—')}</div>${o.Notes ? `<div class="kcard-time">📝 ${escapeHtml(o.Notes)}</div>` : ''}<div class="kcard-actions">${next.map(n => `<button class="kaction-btn ${n.cls}" onclick="updateOrderStatus(${o.OrderID},'${n.status}')">${n.label}</button>`).join('')}</div></div>`;
+    const tableNum = o.TableNumber || parseTableFromNotes(o.Notes);
+    const tableBadge = tableNum ? '<div style="display:inline-block;background:#78350f;color:#fcd34d;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;margin-bottom:8px;">🪑 Table ' + escapeHtml(String(tableNum)) + '</div><br>' : '';
+    return '<div class="kitchen-card status-' + o.Status + '">' +
+      '<div class="kcard-header"><div><div class="kcard-num">Order #' + o.OrderID + '</div>' +
+      '<div class="kcard-type">' + escapeHtml(o.OrderType) + ' · ' + escapeHtml(o.PaymentMethod) + '</div></div>' +
+      '<div class="kcard-status ' + o.Status + '">' + statusEmoji(o.Status) + ' ' + o.Status + '</div></div>' +
+      tableBadge +
+      '<div class="kcard-items">' + (items || '—') + '</div>' +
+      '<div class="kcard-time">🕐 ' + d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' · ' + escapeHtml(o.Employee?.Name || '—') + '</div>' +
+      (o.Notes ? '<div class="kcard-time">📝 ' + escapeHtml(o.Notes) + '</div>' : '') +
+      '<div class="kcard-actions">' + next.map(n => '<button class="kaction-btn ' + n.cls + '" onclick="updateOrderStatus(' + o.OrderID + ',\'' + n.status + '\')">' + n.label + '</button>').join('') + '</div>' +
+      '</div>';
   }).join('');
 }
 
@@ -544,7 +689,7 @@ window.updateOrderStatus = async function (orderId, status) {
   const idx = kitchenOrders.findIndex(o => o.OrderID === orderId);
   if (idx !== -1) kitchenOrders[idx].Status = status;
   renderKitchenGrid();
-  showToast(`Order #${orderId} → ${status}`, 'success');
+  showToast('Order #' + orderId + ' → ' + status, 'success');
 };
 
 window.showTab = function (name, btn) {
@@ -564,3 +709,5 @@ window.closeMobileCart = function () {
   document.getElementById('cartDrawer').classList.remove('open');
   document.getElementById('cartDrawerOverlay').classList.remove('open');
 };
+
+window.getIngredientGroup = getIngredientGroup;

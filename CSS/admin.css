@@ -10,6 +10,7 @@
 .bs-bar{height:100%;background:var(--amber);border-radius:20px;transition:width .6s ease;}
 .bs-qty{font-size:13px;font-weight:700;color:var(--amber);min-width:30px;text-align:right;}
 
+.inv-group-header{grid-column:1/-1;font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.06em;padding:10px 4px 4px;border-bottom:1px solid var(--border);margin-bottom:4px;}
 .inv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:24px;}
 .inv-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;transition:border-color .2s;}
 .inv-card.low{border-color:#ca8a04;}

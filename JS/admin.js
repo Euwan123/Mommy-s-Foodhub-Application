@@ -259,31 +259,90 @@ window.clearPerfFilter = function () {
   loadPerformance();
 };
 
+let invStockFilter = 'all';
+
+window.filterInventoryByStock = function (filter, btn) {
+  invStockFilter = filter;
+  document.querySelectorAll('.inv-stat-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderInventoryGrid();
+};
+
+function buildInvCard(item) {
+  const s = sym();
+  const pct = item.RestockLvl > 0 ? Math.min(100, (item.UnitQuantity / (item.RestockLvl * 3)) * 100) : 100;
+  const statusCls = item.UnitQuantity <= 0 ? 'out' : item.UnitQuantity <= item.RestockLvl ? 'low' : 'ok';
+  const statusText = { out: '🔴 Out of Stock', low: '🟡 Low Stock', ok: '🟢 OK' }[statusCls];
+  const cardCls = item.UnitQuantity <= 0 ? 'out' : item.UnitQuantity <= item.RestockLvl ? 'low' : '';
+  const unitType = item.UnitType || 'unit';
+  const safeId = item.ItemID;
+  const safeName = (item.Name || '').replace(/'/g, "\\'");
+  const safeUnit = unitType.replace(/'/g, "\\'");
+  const restockBtn = isAdmin() ? '<button class="inv-restock-btn" onclick="openRestockModal(' + safeId + ',\'' + safeName + '\',' + (item.UnitQuantity || 0) + ')">+ Restock</button>' : '';
+  const priceBtn = isAdmin() ? '<button class="inv-restock-btn" style="margin-top:6px;" onclick="openIngredientPriceModal(' + safeId + ',\'' + safeName + '\',\'' + safeUnit + '\',' + parseFloat(item.UnitPrice || 0) + ')">Edit price</button>' : '';
+  return '<div class="inv-card ' + cardCls + '">' +
+    '<div class="inv-name">' + escapeHtml(item.Name) + '</div>' +
+    '<div class="inv-unit" style="color:var(--amber);margin-bottom:4px;">' + s + parseFloat(item.UnitPrice || 0).toFixed(2) + ' per ' + escapeHtml(unitType) + '</div>' +
+    '<div class="inv-qty">' + parseFloat(item.UnitQuantity || 0).toFixed(1) + '</div>' +
+    '<div class="inv-unit">' + escapeHtml(unitType) + ' remaining</div>' +
+    '<div class="inv-bar-wrap"><div class="inv-bar ' + statusCls + '" style="width:' + pct.toFixed(1) + '%"></div></div>' +
+    '<div class="inv-status ' + (statusCls === 'ok' ? 'ok' : statusCls === 'low' ? 'low-text' : 'out-text') + '">' + statusText + '</div>' +
+    '<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">Restock at: ' + item.RestockLvl + ' ' + escapeHtml(unitType) + '</div>' +
+    restockBtn + priceBtn +
+    '</div>';
+}
+
+function renderInventoryGrid() {
+  const s = sym();
+  let items = allItems;
+  if (invStockFilter === 'low') items = allItems.filter(i => i.UnitQuantity <= i.RestockLvl && i.UnitQuantity > 0);
+  else if (invStockFilter === 'out') items = allItems.filter(i => i.UnitQuantity <= 0);
+
+  const grid = document.getElementById('invGrid');
+  if (!items.length) { grid.innerHTML = '<div style="color:var(--text-muted);padding:20px;grid-column:1/-1;">No items in this filter.</div>'; return; }
+
+  const groups = {};
+  items.forEach(item => {
+    const g = getIngredientGroup(item.Name);
+    if (!groups[g]) groups[g] = [];
+    groups[g].push(item);
+  });
+
+  grid.innerHTML = '';
+  Object.keys(groups).sort().forEach(groupLabel => {
+    const header = document.createElement('div');
+    header.className = 'inv-group-header';
+    header.textContent = groupLabel;
+    grid.appendChild(header);
+    groups[groupLabel].forEach(item => {
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = buildInvCard(item);
+      grid.appendChild(wrapper.firstChild);
+    });
+  });
+}
+
 window.loadInventory = async function () {
   await loadItems();
   const addCard = document.getElementById('addIngredientCard');
   if (addCard) addCard.style.display = isAdmin() ? '' : 'none';
   const low = allItems.filter(i => i.UnitQuantity <= i.RestockLvl && i.UnitQuantity > 0).length;
   const out = allItems.filter(i => i.UnitQuantity <= 0).length;
-  document.getElementById('invTotal').textContent = allItems.length;
-  document.getElementById('invLow').textContent = low;
-  document.getElementById('invOut').textContent = out;
-  const s = sym();
-  document.getElementById('invGrid').innerHTML = allItems.map(item => {
-    const pct = item.RestockLvl > 0 ? Math.min(100, (item.UnitQuantity / (item.RestockLvl * 3)) * 100) : 100;
-    const statusCls = item.UnitQuantity <= 0 ? 'out' : item.UnitQuantity <= item.RestockLvl ? 'low' : 'ok';
-    const statusText = { out: '🔴 Out of Stock', low: '🟡 Low Stock', ok: '🟢 OK' }[statusCls];
-    const cardCls = item.UnitQuantity <= 0 ? 'out' : item.UnitQuantity <= item.RestockLvl ? 'low' : '';
-    const unitType = item.UnitType || 'unit';
-    const safeId = item.ItemID;
-    const safeName = (item.Name || '').replace(/'/g, "\\'");
-    const safeUnit = (unitType).replace(/'/g, "\\'");
-    const restockBtn = isAdmin() ? `<button class="inv-restock-btn" onclick="openRestockModal(${safeId},'${safeName}',${item.UnitQuantity || 0})">+ Restock</button>` : '';
-    const priceBtn = isAdmin() ? `<button class="inv-restock-btn" style="margin-top:6px;" onclick="openIngredientPriceModal(${safeId},'${safeName}','${safeUnit}',${parseFloat(item.UnitPrice || 0)})">Edit price</button>` : '';
-    return `<div class="inv-card ${cardCls}"><div class="inv-name">${escapeHtml(item.Name)}</div><div class="inv-cat">${escapeHtml(item.CategoryLabel || '—')}</div><div class="inv-unit" style="color:var(--amber);margin-bottom:4px;">${s}${parseFloat(item.UnitPrice || 0).toFixed(2)} per ${escapeHtml(unitType)}</div><div class="inv-qty">${parseFloat(item.UnitQuantity || 0).toFixed(1)}</div><div class="inv-unit">${escapeHtml(unitType)} remaining</div><div class="inv-bar-wrap"><div class="inv-bar ${statusCls}" style="width:${pct.toFixed(1)}%"></div></div><div class="inv-status ${statusCls === 'ok' ? 'ok' : statusCls === 'low' ? 'low-text' : 'out-text'}">${statusText}</div><div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">Restock at: ${item.RestockLvl} ${escapeHtml(unitType)}</div>${restockBtn}${priceBtn}</div>`;
-  }).join('');
+
+  const totalEl = document.getElementById('invTotal');
+  const lowEl = document.getElementById('invLow');
+  const outEl = document.getElementById('invOut');
+  if (totalEl) { totalEl.textContent = allItems.length; totalEl.style.cursor = 'pointer'; totalEl.onclick = function () { filterInventoryByStock('all', null); document.querySelectorAll('.inv-stat-btn').forEach(b => b.classList.remove('active')); }; }
+  if (lowEl) { lowEl.textContent = low; lowEl.style.cursor = 'pointer'; lowEl.onclick = function () { filterInventoryByStock('low', null); }; }
+  if (outEl) { outEl.textContent = out; outEl.style.cursor = 'pointer'; outEl.onclick = function () { filterInventoryByStock('out', null); }; }
+
+  invStockFilter = 'all';
+  renderInventoryGrid();
+
   const { data: ingRows } = await sb.from('Ingredients').select('*, Item(Name, UnitType), Product(Name)');
-  document.getElementById('ingMapBody').innerHTML = (ingRows || []).map(r => `<tr><td>${escapeHtml(r.Item?.Name || '—')}</td><td>${escapeHtml(r.Product?.Name || '—')}</td><td>${r.UnitPerServing}</td><td>${escapeHtml(r.Item?.UnitType || '—')}</td></tr>`).join('');
+  document.getElementById('ingMapBody').innerHTML = (ingRows || []).map(r =>
+    '<tr><td>' + escapeHtml(r.Item?.Name || '—') + '</td><td>' + escapeHtml(r.Product?.Name || '—') + '</td><td>' + r.UnitPerServing + '</td><td>' + escapeHtml(r.Item?.UnitType || '—') + '</td></tr>'
+  ).join('');
 };
 
 window.openIngredientPriceModal = function (id, name, unitType, unitPrice) {

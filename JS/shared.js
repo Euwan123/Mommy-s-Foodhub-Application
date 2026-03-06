@@ -21,12 +21,13 @@ function escapeHtml(str) {
 }
 
 let toastTimer;
-function showToast(msg, type = '') {
+function showToast(msg, type) {
+  type = type || '';
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.className = 'show ' + type;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.className = ''; }, 3000);
+  toastTimer = setTimeout(function () { t.className = ''; }, 3000);
 }
 window.showToast = showToast;
 
@@ -38,7 +39,9 @@ function applyTheme() {
     if (meta) meta.setAttribute('content', s.themeColor);
   }
   if (s.bgColor) {
-    const adj = (hex, a) => '#' + [1, 3, 5].map(i => Math.min(255, parseInt(hex.slice(i, i + 2), 16) + a).toString(16).padStart(2, '0')).join('');
+    const adj = function (hex, a) {
+      return '#' + [1, 3, 5].map(function (i) { return Math.min(255, parseInt(hex.slice(i, i + 2), 16) + a).toString(16).padStart(2, '0'); }).join('');
+    };
     document.documentElement.style.setProperty('--bg', s.bgColor);
     document.documentElement.style.setProperty('--surface', adj(s.bgColor, 14));
     document.documentElement.style.setProperty('--surface2', adj(s.bgColor, 22));
@@ -59,7 +62,9 @@ function setBgColor(bg) {
   const s = S();
   s.bgColor = bg;
   localStorage.setItem('pos_settings', JSON.stringify(s));
-  const adj = (hex, a) => '#' + [1, 3, 5].map(i => Math.min(255, parseInt(hex.slice(i, i + 2), 16) + a).toString(16).padStart(2, '0')).join('');
+  const adj = function (hex, a) {
+    return '#' + [1, 3, 5].map(function (i) { return Math.min(255, parseInt(hex.slice(i, i + 2), 16) + a).toString(16).padStart(2, '0'); }).join('');
+  };
   document.documentElement.style.setProperty('--bg', bg);
   document.documentElement.style.setProperty('--surface', adj(bg, 14));
   document.documentElement.style.setProperty('--surface2', adj(bg, 22));
@@ -72,33 +77,32 @@ function setCurrency(symbol) {
   localStorage.setItem('pos_settings', JSON.stringify(s));
 }
 
-window.applyCustomColor = (val) => setThemeColor(val);
+window.applyCustomColor = function (val) { setThemeColor(val); };
 
 window.resetTheme = function () {
   setThemeColor('#f59e0b');
   setBgColor('#1a1008');
-  document.querySelectorAll('.swatch').forEach(s => s.classList.toggle('active', s.dataset.color === '#f59e0b'));
-  document.querySelectorAll('.bg-swatch').forEach(s => s.classList.toggle('active', s.dataset.bg === '#1a1008'));
+  document.querySelectorAll('.swatch').forEach(function (s) { s.classList.toggle('active', s.dataset.color === '#f59e0b'); });
+  document.querySelectorAll('.bg-swatch').forEach(function (s) { s.classList.toggle('active', s.dataset.bg === '#1a1008'); });
   showToast('Theme reset!', 'success');
 };
 
 window.applyCustomCurrency = function () {
   const val = document.getElementById('customCurrency').value.trim();
   if (!val) return;
-  document.querySelectorAll('.curr-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.curr-btn').forEach(function (b) { b.classList.remove('active'); });
   setCurrency(val);
   showToast('Currency updated!', 'success');
 };
 
 window.saveSettings = function () {
   const prev = S();
-  const updated = {
-    ...prev,
+  const updated = Object.assign({}, prev, {
     name: document.getElementById('settingName').value || "Mommy's FoodHub",
     address: document.getElementById('settingAddress').value || '',
     contact: document.getElementById('settingContact').value || '',
     footer: document.getElementById('settingFooter').value || 'Thank you for dining with us! 🙏'
-  };
+  });
   localStorage.setItem('pos_settings', JSON.stringify(updated));
   showToast('Settings saved!', 'success');
 };
@@ -109,9 +113,30 @@ function loadSettingsForm() {
   if (s.address) document.getElementById('settingAddress').value = s.address;
   if (s.contact) document.getElementById('settingContact').value = s.contact;
   if (s.footer) document.getElementById('settingFooter').value = s.footer;
-  document.querySelectorAll('.swatch').forEach(sw => sw.classList.toggle('active', sw.dataset.color === (s.themeColor || '#f59e0b')));
-  document.querySelectorAll('.bg-swatch').forEach(sw => sw.classList.toggle('active', sw.dataset.bg === (s.bgColor || '#1a1008')));
-  document.querySelectorAll('.curr-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.symbol === (s.currency || '₱')));
+  document.querySelectorAll('.swatch[data-color]').forEach(function (sw) {
+    sw.classList.toggle('active', sw.dataset.color === (s.themeColor || '#f59e0b'));
+    sw.onclick = function () {
+      document.querySelectorAll('.swatch').forEach(function (x) { x.classList.remove('active'); });
+      sw.classList.add('active');
+      setThemeColor(sw.dataset.color);
+    };
+  });
+  document.querySelectorAll('.bg-swatch').forEach(function (sw) {
+    sw.classList.toggle('active', sw.dataset.bg === (s.bgColor || '#1a1008'));
+    sw.onclick = function () {
+      document.querySelectorAll('.bg-swatch').forEach(function (x) { x.classList.remove('active'); });
+      sw.classList.add('active');
+      setBgColor(sw.dataset.bg);
+    };
+  });
+  document.querySelectorAll('.curr-btn').forEach(function (btn) {
+    btn.classList.toggle('active', btn.dataset.symbol === (s.currency || '₱'));
+    btn.onclick = function () {
+      document.querySelectorAll('.curr-btn').forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      setCurrency(btn.dataset.symbol);
+    };
+  });
 }
 
 window.changePassword = async function () {
@@ -125,7 +150,7 @@ window.changePassword = async function () {
   if (!data || data.Password !== cur) { showToast('Current password wrong', 'error'); return; }
   await sb.from('Employee').update({ Password: nw }).eq('EmployeeID', currentUser.EmployeeID);
   currentUser.Password = nw;
-  ['curPass', 'newPass', 'confirmPass'].forEach(id => { document.getElementById(id).value = ''; });
+  ['curPass','newPass','confirmPass'].forEach(function (id) { document.getElementById(id).value = ''; });
   showToast('Password updated!', 'success');
 };
 
@@ -173,14 +198,14 @@ window.doLogout = async function () {
   document.getElementById('app').style.display = 'none';
   const ls = document.getElementById('loginScreen');
   ls.style.display = 'flex';
-  setTimeout(() => { ls.style.opacity = '1'; }, 10);
+  setTimeout(function () { ls.style.opacity = '1'; }, 10);
   document.getElementById('loginUser').value = '';
   document.getElementById('loginPass').value = '';
 };
 
 function startEmployeeCheckoutPoll() {
   if (isAdmin() || !activeAttendanceId) return;
-  const poll = async () => {
+  const poll = async function () {
     const { data } = await sb.from('Attendance').select('CheckOut').eq('AttendanceID', activeAttendanceId).single();
     if (data?.CheckOut) {
       clearTimeout(employeeCheckoutPollTimer);
@@ -224,13 +249,14 @@ window.syncOfflineOrders = async function () {
     const { data: row, error } = await sb.from('Order').insert([{
       EmployeeID: o.EmployeeID, OrderDateTime: o.saved_at, OrderType: o.OrderType,
       PaymentMethod: o.PaymentMethod, TotalAmount: o.TotalAmount, Status: 'Completed',
-      Notes: o.Notes, DiscountCode: o.DiscountCode, DiscountAmount: o.DiscountAmount
+      Notes: o.Notes, DiscountCode: o.DiscountCode, DiscountAmount: o.DiscountAmount,
+      GCashFee: o.GCashFee || null, TableNumber: o.TableNumber || null
     }]).select().single();
     if (!error && row) {
-      await sb.from('OrderDetails').insert(o.items.map(i => ({
+      await sb.from('OrderDetails').insert(o.items.map(function (i) { return {
         OrderID: row.OrderID, ProductID: i.id, SizeLabel: i.size || null,
         Quantity: i.quantity, Price: i.price, Subtotal: i.price * i.quantity
-      })));
+      }; }));
       for (const i of o.items) {
         const { data: ingData } = await sb.from('Ingredients').select('ItemID,UnitPerServing').eq('ProductID', i.id);
         if (ingData?.length) {
@@ -248,7 +274,7 @@ window.syncOfflineOrders = async function () {
   }
   if (synced) {
     localStorage.setItem('offline_orders', JSON.stringify(pending.slice(synced)));
-    showToast(`Synced ${synced} order(s)!`, 'success');
+    showToast('Synced ' + synced + ' order(s)!', 'success');
     updateOfflineBadge();
   }
 };
@@ -269,21 +295,4 @@ async function refundOrderIngredients(orderId) {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-  document.querySelectorAll('.swatch[data-color]').forEach(sw => sw.addEventListener('click', () => {
-    document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
-    sw.classList.add('active');
-    setThemeColor(sw.dataset.color);
-  }));
-  document.querySelectorAll('.bg-swatch').forEach(sw => sw.addEventListener('click', () => {
-    document.querySelectorAll('.bg-swatch').forEach(s => s.classList.remove('active'));
-    sw.classList.add('active');
-    setBgColor(sw.dataset.bg);
-  }));
-  document.querySelectorAll('.curr-btn').forEach(btn => btn.addEventListener('click', () => {
-    document.querySelectorAll('.curr-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    setCurrency(btn.dataset.symbol);
-  }));
-});
+document.getElementById('loginPass').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });

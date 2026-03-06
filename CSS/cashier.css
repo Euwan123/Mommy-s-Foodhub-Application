@@ -1,4 +1,4 @@
-.cashier-layout{display:grid;grid-template-columns:1fr 420px;gap:20px;height:calc(100vh - 104px);}
+.cashier-layout{display:grid;grid-template-columns:1fr 530px;gap:20px;height:calc(100vh - 104px);}
 .menu-section{display:flex;flex-direction:column;overflow:hidden;}
 .menu-controls{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center;}
 .menu-search{flex:1;min-width:160px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-size:14px;outline:none;transition:border-color .2s;-webkit-text-fill-color:var(--text);}
@@ -11,6 +11,10 @@
 .product-grid::-webkit-scrollbar{width:6px;}
 .product-grid::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
 .group-header{grid-column:1/-1;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin:12px 4px 4px;}
+.group-header.popular-header{color:var(--amber);font-size:13px;letter-spacing:.06em;}
+.quick-cash-btns{display:flex;gap:6px;flex-wrap:wrap;}
+.quick-cash-btn{padding:5px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--amber);font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;}
+.quick-cash-btn:hover{background:var(--amber);color:#1a1008;border-color:var(--amber);}
 .product-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 16px;text-align:center;cursor:pointer;transition:all .18s;position:relative;user-select:none;}
 .product-card:hover{border-color:var(--amber);transform:translateY(-2px);box-shadow:0 4px 16px #00000044;}
 .product-card:active{transform:scale(.97);}

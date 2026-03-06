@@ -90,6 +90,10 @@
             </div>
             <div class="cart-items" id="cartItems"><div class="cart-empty">No items yet.<br>Tap a dish to add.</div></div>
             <div class="cart-footer">
+              <div class="form-group" id="tableNumberWrap">
+                <label>🪑 Table Number</label>
+                <input type="text" class="field-input" id="tableNumber" placeholder="e.g. 10" style="max-width:120px;">
+              </div>
               <div class="form-group">
                 <label>Payment</label>
                 <div class="payment-btns">
@@ -97,14 +101,14 @@
                   <button class="pay-btn" onclick="setPayment('GCash',this)">📱 GCash</button>
                 </div>
               </div>
-              <div class="form-group">
-                <label>Order Notes</label>
-                <input type="text" class="field-input" id="orderNotes" placeholder="e.g. no onions…" style="text-transform:none;">
-              </div>
               <div class="form-group" id="deliveryFields" style="display:none;">
                 <label>Delivery Details</label>
                 <input type="text" class="field-input" id="deliveryPlatform" placeholder="Platform (e.g. Foodpanda, Grab)" style="text-transform:none;margin-bottom:6px;">
                 <input type="text" class="field-input" id="deliveryRider" placeholder="Driver name / number / ID" style="text-transform:none;">
+              </div>
+              <div class="form-group">
+                <label>Order Notes</label>
+                <input type="text" class="field-input" id="orderNotes" placeholder="e.g. no onions…" style="text-transform:none;">
               </div>
               <div class="discount-row">
                 <input class="field-input" id="promoInput" placeholder="Promo code…">
@@ -120,9 +124,15 @@
                 <div class="cart-total-amt"><span class="curr-sym">₱</span><span id="cartTotal">0.00</span></div>
               </div>
               <div class="change-calc" id="changeCalc" style="display:none;">
-                <div class="change-row">
+                <div class="change-row" style="flex-direction:column;gap:6px;">
                   <label>Cash Received (<span class="curr-sym-inline">₱</span>)</label>
                   <input type="number" id="cashReceived" placeholder="0.00" oninput="calcChange()" min="0">
+                  <div class="quick-cash-btns">
+                    <button class="quick-cash-btn" onclick="setQuickCash(100,'desktop')">100</button>
+                    <button class="quick-cash-btn" onclick="setQuickCash(200,'desktop')">200</button>
+                    <button class="quick-cash-btn" onclick="setQuickCash(500,'desktop')">500</button>
+                    <button class="quick-cash-btn" onclick="setQuickCash(1000,'desktop')">1000</button>
+                  </div>
                 </div>
                 <div class="change-row">
                   <label>Change</label>
@@ -169,6 +179,10 @@
         </div>
         <div class="cart-items" id="cartItemsMobile"><div class="cart-empty">No items yet.</div></div>
         <div class="cart-footer">
+          <div class="form-group" id="tableNumberWrapM">
+            <label>🪑 Table Number</label>
+            <input type="text" class="field-input" id="tableNumberM" placeholder="e.g. 10" style="max-width:120px;">
+          </div>
           <div class="form-group">
             <label>Payment</label>
             <div class="payment-btns">
@@ -176,14 +190,14 @@
               <button class="pay-btn-m" onclick="setPaymentM('GCash',this)">📱 GCash</button>
             </div>
           </div>
-          <div class="form-group">
-            <label>Notes</label>
-            <input type="text" class="field-input" id="orderNotesM" placeholder="e.g. no onions…" style="text-transform:none;">
-          </div>
           <div class="form-group" id="deliveryFieldsM" style="display:none;">
             <label>Delivery Details</label>
             <input type="text" class="field-input" id="deliveryPlatformM" placeholder="Platform (e.g. Foodpanda, Grab)" style="text-transform:none;margin-bottom:6px;">
             <input type="text" class="field-input" id="deliveryRiderM" placeholder="Driver name / number / ID" style="text-transform:none;">
+          </div>
+          <div class="form-group">
+            <label>Notes</label>
+            <input type="text" class="field-input" id="orderNotesM" placeholder="e.g. no onions…" style="text-transform:none;">
           </div>
           <div class="discount-row">
             <input class="field-input" id="promoInputM" placeholder="Promo code…">
@@ -199,9 +213,15 @@
             <div class="cart-total-amt"><span class="curr-sym">₱</span><span id="cartTotalM">0.00</span></div>
           </div>
           <div class="change-calc" id="changeCalcM" style="display:none;">
-            <div class="change-row">
+            <div class="change-row" style="flex-direction:column;gap:6px;">
               <label>Cash Received (<span class="curr-sym-inline">₱</span>)</label>
               <input type="number" id="cashReceivedM" placeholder="0.00" oninput="calcChangeM()" min="0">
+              <div class="quick-cash-btns">
+                <button class="quick-cash-btn" onclick="setQuickCash(100,'mobile')">100</button>
+                <button class="quick-cash-btn" onclick="setQuickCash(200,'mobile')">200</button>
+                <button class="quick-cash-btn" onclick="setQuickCash(500,'mobile')">500</button>
+                <button class="quick-cash-btn" onclick="setQuickCash(1000,'mobile')">1000</button>
+              </div>
             </div>
             <div class="change-row">
               <label>Change</label>
@@ -303,27 +323,31 @@
           <button class="btn-apply" onclick="loadInventory()">🔄 Refresh</button>
         </div>
         <div class="stats-row">
-          <div class="stat-card"><div class="stat-label">Total Ingredients</div><div class="stat-val" id="invTotal">—</div></div>
-          <div class="stat-card"><div class="stat-label">Low Stock</div><div class="stat-val" style="color:#ca8a04;" id="invLow">—</div></div>
-          <div class="stat-card"><div class="stat-label">Out of Stock</div><div class="stat-val" style="color:var(--red);" id="invOut">—</div></div>
+          <div class="stat-card" style="cursor:pointer;" title="Show all" onclick="filterInventoryByStock('all',null)"><div class="stat-label">Total Ingredients</div><div class="stat-val" id="invTotal">—</div></div>
+          <div class="stat-card" style="cursor:pointer;border-color:#ca8a04;" title="Show low stock" onclick="filterInventoryByStock('low',null)"><div class="stat-label">🟡 Low Stock — click to filter</div><div class="stat-val" style="color:#ca8a04;" id="invLow">—</div></div>
+          <div class="stat-card" style="cursor:pointer;border-color:var(--red);" title="Show out of stock" onclick="filterInventoryByStock('out',null)"><div class="stat-label">🔴 Out of Stock — click to filter</div><div class="stat-val" style="color:var(--red);" id="invOut">—</div></div>
         </div>
-        <div class="form-card" id="addIngredientCard" style="margin-bottom:20px;max-width:400px;">
-          <div class="form-title">Add Ingredient</div>
-          <div class="form-group"><label>Name</label><input type="text" id="ingName" placeholder="e.g. Egg"></div>
-          <div class="form-group"><label>Unit Type</label><input type="text" id="ingUnitType" placeholder="e.g. piece, kilo, liter"></div>
-          <div class="form-group"><label>Initial Quantity</label><input type="number" id="ingQty" placeholder="0" min="0" step="0.01"></div>
-          <div class="form-group"><label>Price per unit (₱)</label><input type="number" id="ingUnitPrice" placeholder="0" min="0" step="0.01"></div>
-          <div class="form-group"><label>Restock at level</label><input type="number" id="ingRestockLvl" placeholder="0" min="0" step="0.01"></div>
-          <button class="btn-primary" onclick="saveNewIngredient()">Add Ingredient</button>
-        </div>
-        <div class="inv-grid" id="invGrid"></div>
-        <div class="ing-table-section">
-          <div class="form-title">Ingredient → Dish Mapping</div>
-          <div class="table-wrap" style="margin-top:10px;">
-            <table>
-              <thead><tr><th>Ingredient</th><th>Used In</th><th>Per Serving</th><th>Unit</th></tr></thead>
-              <tbody id="ingMapBody"></tbody>
-            </table>
+        <div class="mgmt-layout">
+          <div class="form-card" id="addIngredientCard">
+            <div class="form-title">Add Ingredient</div>
+            <div class="form-group"><label>Name</label><input type="text" id="ingName" placeholder="e.g. Egg"></div>
+            <div class="form-group"><label>Unit Type</label><input type="text" id="ingUnitType" placeholder="e.g. piece, kilo, liter"></div>
+            <div class="form-group"><label>Initial Quantity</label><input type="number" id="ingQty" placeholder="0" min="0" step="0.01"></div>
+            <div class="form-group"><label>Price per unit (₱)</label><input type="number" id="ingUnitPrice" placeholder="0" min="0" step="0.01"></div>
+            <div class="form-group"><label>Restock at level</label><input type="number" id="ingRestockLvl" placeholder="0" min="0" step="0.01"></div>
+            <button class="btn-primary" onclick="saveNewIngredient()">Add Ingredient</button>
+            <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">
+              <div class="form-title">Ingredient → Dish Mapping</div>
+              <div class="table-wrap" style="margin-top:10px;">
+                <table>
+                  <thead><tr><th>Ingredient</th><th>Used In</th><th>Per Serving</th><th>Unit</th></tr></thead>
+                  <tbody id="ingMapBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="inv-grid" id="invGrid"></div>
           </div>
         </div>
       </div>
