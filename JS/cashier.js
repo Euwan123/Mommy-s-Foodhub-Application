@@ -505,11 +505,72 @@ window.checkout = async function () {
     return;
   }
 
-  const { data: orderRow, error: orderErr } = await sb.from('Order').insert([orderData]).select().single();
+  const insertPayload = {
+    EmployeeID: orderData.EmployeeID,
+    OrderDateTime: orderData.OrderDateTime,
+    OrderType: orderData.OrderType,
+    PaymentMethod: orderData.PaymentMethod,
+    TotalAmount: orderData.TotalAmount,
+    Status: orderData.Status,
+    Notes: orderData.Notes,
+    DiscountCode: orderData.DiscountCode,
+    DiscountAmount: orderData.DiscountAmount
+  };
+  if (orderData.GCashFee != null) insertPayload.GCashFee = orderData.GCashFee;
+  if (orderData.TableNumber) insertPayload.TableNumber = orderData.TableNumber;
+
+  const { data: orderRow, error: orderErr } = await sb.from('Order').insert([insertPayload]).select().single();
   if (orderErr || !orderRow) {
-    saveOfflineOrder({ ...orderData, items: cartSnapshot, orderNum: orderCounter, tableNum });
-    showToast('Saved offline — will sync later', 'error');
+    const msg = orderErr?.message || 'Unknown error';
+    showToast('DB error: ' + msg, 'error');
+    console.error('Order insert failed:', orderErr);
+    const tryBase = {
+      EmployeeID: orderData.EmployeeID,
+      OrderDateTime: orderData.OrderDateTime,
+      OrderType: orderData.OrderType,
+      PaymentMethod: orderData.PaymentMethod,
+      TotalAmount: orderData.TotalAmount,
+      Status: orderData.Status,
+      Notes: orderData.Notes,
+      DiscountCode: orderData.DiscountCode,
+      DiscountAmount: orderData.DiscountAmount
+    };
+    const { data: retryRow, error: retryErr } = await sb.from('Order').insert([tryBase]).select().single();
+    if (retryErr || !retryRow) {
+      showToast('Failed: ' + (retryErr?.message || msg), 'error');
+      console.error('Retry failed:', retryErr);
+      saveOfflineOrder({ ...orderData, items: cartSnapshot, orderNum: orderCounter, tableNum });
+      orderCounter++;
+      clearCart();
+      closeMobileCart();
+      return;
+    }
+    Object.assign(orderRow || {}, retryRow);
+    const orderRowFinal = retryRow;
+    const orderId2 = orderRowFinal.OrderID;
+    await sb.from('OrderDetails').insert(cartSnapshot.map(i => ({
+      OrderID: orderId2, ProductID: i.id, SizeLabel: i.size || null,
+      Quantity: i.quantity, Price: i.price, Subtotal: i.price * i.quantity
+    })));
+    for (const i of cartSnapshot) {
+      try {
+        const { data: ingData } = await sb.from('Ingredients').select('ItemID,UnitPerServing').eq('ProductID', i.id);
+        if (ingData?.length) {
+          for (const ing of ingData) {
+            const { data: itemRow } = await sb.from('Item').select('UnitQuantity').eq('ItemID', ing.ItemID).single();
+            const curr = parseFloat(itemRow?.UnitQuantity ?? 0) || 0;
+            const deduct = (parseFloat(ing.UnitPerServing) || 0) * i.quantity;
+            const { error: updateErr } = await sb.from('Item').update({ UnitQuantity: Math.max(0, curr - deduct) }).eq('ItemID', ing.ItemID);
+            if (!updateErr) await sb.from('IngredientLog').insert([{ ItemID: ing.ItemID, OrderID: orderId2, ChangeAmt: -deduct, Reason: 'Order' }]);
+          }
+        }
+      } catch (_) {}
+    }
+    showToast('Order #' + orderCounter + ' placed! ' + sym() + total.toFixed(2), 'success');
+    showReceiptFromData({ ...orderData, items: cartSnapshot, orderNum: orderCounter, tableNum }, orderId2);
     orderCounter++;
+    await loadProducts();
+    renderProductGrid();
     clearCart();
     closeMobileCart();
     return;
