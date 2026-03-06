@@ -150,7 +150,7 @@ tr:hover td { background: var(--surface2); }
 .cat-btn { background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; transition: all .2s; white-space: nowrap; }
 .cat-btn:hover { border-color: var(--amber); color: var(--amber); }
 .cat-btn.active { background: var(--amber); color: #1a1008; border-color: var(--amber); font-weight: 600; }
-.product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; overflow-y: auto; padding-right: 4px; }
+.product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 14px; overflow-y: auto; padding-right: 4px; }
 .product-grid::-webkit-scrollbar { width: 6px; }
 .product-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 .group-header { grid-column: 1/-1; font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .08em; margin: 12px 4px 4px; }
@@ -494,7 +494,6 @@ tr:hover td { background: var(--surface2); }
       <div class="kitchen-grid" id="kitchenGrid"></div>
     </div>
 
-    <!-- Mobile cart FAB -->
     <button class="cart-fab" id="cartFab" onclick="openMobileCart()">
       🛒 <span class="fab-count" id="cartFabCount">0</span>
       <span class="fab-total" id="cartFabTotal">₱0.00</span>
@@ -557,7 +556,6 @@ tr:hover td { background: var(--surface2); }
       </div>
     </div>
 
-    <!-- POS bottom nav -->
     <nav class="bottom-nav" id="posBottomNav">
       <button class="bnav-btn active" onclick="showTab('cashier',this)">🧾<span>Cashier</span></button>
       <button class="bnav-btn" onclick="showTab('kitchen',this)">🍳<span>Kitchen</span></button>
@@ -566,9 +564,6 @@ tr:hover td { background: var(--surface2); }
     </nav>
   </div>
 
-  <!-- ════════════════════════════════════ -->
-  <!-- ADMIN VIEW                          -->
-  <!-- ════════════════════════════════════ -->
   <div id="adminView">
 
 <div class="admin-tabs" id="adminTabs">
@@ -593,6 +588,7 @@ tr:hover td { background: var(--surface2); }
         <div class="stat-card"><div class="stat-label">Orders</div><div class="stat-val" id="statOrders">—</div></div>
         <div class="stat-card"><div class="stat-label">Revenue</div><div class="stat-val green" id="statRevenue">—</div></div>
         <div class="stat-card"><div class="stat-label">Total Profit</div><div class="stat-val" id="statProfit">—</div></div>
+        <div class="stat-card"><div class="stat-label">Total Ingredient Cost</div><div class="stat-val" id="statIngredientCost">—</div></div>
         <div class="stat-card"><div class="stat-label">Avg Order</div><div class="stat-val" id="statAvg">—</div></div>
         <div class="stat-card"><div class="stat-label">Pending Sync</div><div class="stat-val" id="statOffline">0</div></div>
       </div>
@@ -655,6 +651,15 @@ tr:hover td { background: var(--surface2); }
         <div class="stat-card"><div class="stat-label">Total Ingredients</div><div class="stat-val" id="invTotal">—</div></div>
         <div class="stat-card"><div class="stat-label">Low Stock</div><div class="stat-val" style="color:#ca8a04;" id="invLow">—</div></div>
         <div class="stat-card"><div class="stat-label">Out of Stock</div><div class="stat-val" style="color:var(--red);" id="invOut">—</div></div>
+      </div>
+      <div class="form-card" id="addIngredientCard" style="margin-bottom:20px;max-width:400px;">
+        <div class="form-title">Add Ingredient</div>
+        <div class="form-group"><label>Name</label><input type="text" id="ingName" placeholder="e.g. Egg"></div>
+        <div class="form-group"><label>Unit Type</label><input type="text" id="ingUnitType" placeholder="e.g. piece, kilo, liter"></div>
+        <div class="form-group"><label>Initial Quantity</label><input type="number" id="ingQty" placeholder="0" min="0" step="0.01"></div>
+        <div class="form-group"><label>Price per unit (₱)</label><input type="number" id="ingUnitPrice" placeholder="0" min="0" step="0.01"></div>
+        <div class="form-group"><label>Restock at level</label><input type="number" id="ingRestockLvl" placeholder="0" min="0" step="0.01"></div>
+        <button class="btn-primary" onclick="saveNewIngredient()">Add Ingredient</button>
       </div>
       <div class="inv-grid" id="invGrid"></div>
       <div class="ing-table-section">
@@ -743,12 +748,17 @@ tr:hover td { background: var(--surface2); }
           <input type="hidden" id="staffEditId">
           <div class="form-group"><label>Full Name</label><input type="text" id="staffName" placeholder="e.g. Juan Dela Cruz"></div>
           <div class="form-group"><label>Username</label><input type="text" id="staffUser" placeholder="e.g. juan" autocomplete="off"></div>
-          <div class="form-group"><label>Password</label><input type="text" id="staffPass" placeholder="password" autocomplete="new-password"></div>
+          <div class="form-group"><label>Password</label><input type="text" id="staffPass" placeholder="leave blank to keep current" autocomplete="new-password"></div>
           <div class="form-group"><label>Position</label><input type="text" id="staffPosition" placeholder="e.g. Cashier"></div>
           <div class="form-group"><label>Access Level</label>
             <select id="staffRole"><option value="Staff">Staff</option><option value="Admin">Admin</option><option value="Manager">Manager</option></select>
           </div>
+          <div class="form-group"><label>Per hour salary (₱)</label><input type="number" id="staffHourlyRate" placeholder="0" min="0" step="0.01"></div>
           <div class="form-group"><label>Date of Birth</label><input type="date" id="staffDob"></div>
+          <div class="form-group"><label>Date Hired / Joined</label><input type="date" id="staffDateHired"></div>
+          <div class="form-group"><label>Contact Number</label><input type="text" id="staffContact" placeholder="09XX-XXX-XXXX"></div>
+          <div class="form-group"><label>Email</label><input type="email" id="staffEmail" placeholder="email@example.com"></div>
+          <div class="form-group"><label>Address</label><input type="text" id="staffAddress" placeholder="Full address"></div>
           <button class="btn-primary" onclick="saveStaff()">Save Staff</button>
           <button class="btn-ghost" style="margin-top:8px;" onclick="cancelStaffEdit()">Cancel</button>
         </div>
@@ -869,10 +879,8 @@ tr:hover td { background: var(--surface2); }
     <div class="account-row"><span>Username</span><strong id="accountUsername"></strong></div>
     <div class="account-row"><span>Employee ID</span><strong id="accountId"></strong></div>
     <div class="account-row"><span>Access Level</span><strong id="accountAccess"></strong></div>
-    <div class="account-row" id="shiftRow" style="display:none;"><span>Shift Status</span><strong id="accountShift" style="color:var(--green);">—</strong></div>
-    <div id="checkinInfo" style="font-size:12px;color:var(--text-muted);margin-top:8px;text-align:center;min-height:18px;"></div>
+    <div class="account-row" id="shiftRow"><span>Shift Status</span><strong id="accountShift" style="color:var(--green);">—</strong></div>
     <div class="modal-footer" style="margin-top:20px;flex-direction:column;gap:8px;">
-      <button class="btn-modal-ok" id="checkinBtn" onclick="toggleCheckin()" style="display:none;">⏱ Check In</button>
       <button class="btn-modal-cancel" style="color:var(--red);border-color:var(--red);" onclick="doLogout()">🚪 Logout</button>
       <button class="btn-modal-ok" onclick="closeAccountModal()">Close</button>
     </div>
@@ -946,10 +954,19 @@ tr:hover td { background: var(--surface2); }
   </div>
 </div>
 
+<div class="modal-overlay" id="staffInfoModal">
+  <div class="modal-box" style="max-width:420px;">
+    <div class="modal-title">Staff Info</div>
+    <div id="staffInfoContent" style="font-size:14px;line-height:1.8;"></div>
+    <div class="modal-footer" style="margin-top:14px;">
+      <button class="btn-modal-ok" onclick="closeStaffInfo()">Close</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 <div id="printArea" style="display:none;"></div>
 
-<!-- ─── SUPABASE ───────────────────────────── -->
 <script type="module">
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 window.supabase = createClient(
@@ -1230,52 +1247,17 @@ window.openAccountModal = function() {
   document.getElementById('accountUsername').textContent = currentUser.Username || '—';
   document.getElementById('accountId').textContent = '#' + currentUser.EmployeeID;
   document.getElementById('accountAccess').textContent = currentUser.AccessLevel;
-  const shiftRow = document.getElementById('shiftRow');
-  const checkinBtn = document.getElementById('checkinBtn');
-  if (currentViewMode === 'pos' || !isAdmin()) {
-    shiftRow.style.display = '';
-    checkinBtn.style.display = '';
-    if (activeAttendanceId) {
-      document.getElementById('accountShift').textContent = '✅ Checked In';
-      document.getElementById('accountShift').style.color = 'var(--green)';
-      checkinBtn.textContent = '⏹ Check Out';
-      checkinBtn.style.background = 'var(--red)';
-    } else {
-      document.getElementById('accountShift').textContent = '⏹ Not Checked In';
-      document.getElementById('accountShift').style.color = 'var(--text-muted)';
-      checkinBtn.textContent = '⏱ Check In';
-      checkinBtn.style.background = 'var(--green)';
-    }
+  const shiftEl = document.getElementById('accountShift');
+  if (activeAttendanceId) {
+    shiftEl.textContent = '✅ Checked In';
+    shiftEl.style.color = 'var(--green)';
+  } else {
+    shiftEl.textContent = '⏹ Not Checked In';
+    shiftEl.style.color = 'var(--text-muted)';
   }
-  document.getElementById('checkinInfo').textContent = '';
   document.getElementById('accountModal').classList.add('open');
 };
 window.closeAccountModal = function() { document.getElementById('accountModal').classList.remove('open'); };
-
-window.toggleCheckin = async function() {
-  if (activeAttendanceId) {
-    await sb.from('Attendance').update({ CheckOut: new Date().toISOString() }).eq('AttendanceID', activeAttendanceId);
-    activeAttendanceId = null;
-    updateShiftBadge(null, false);
-    showToast('Checked out! See you next shift 👋', 'success');
-    document.getElementById('checkinBtn').textContent = '⏱ Check In';
-    document.getElementById('checkinBtn').style.background = 'var(--green)';
-    document.getElementById('accountShift').textContent = '⏹ Not Checked In';
-    document.getElementById('accountShift').style.color = 'var(--text-muted)';
-  } else {
-    const { data } = await sb.from('Attendance').insert([{ EmployeeID: currentUser.EmployeeID }]).select().single();
-    if (data) {
-      activeAttendanceId = data.AttendanceID;
-      updateShiftBadge(data.CheckIn, true);
-      showToast('Checked in! ✅', 'success');
-      document.getElementById('checkinInfo').textContent = 'Checked in at ' + new Date(data.CheckIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      document.getElementById('checkinBtn').textContent = '⏹ Check Out';
-      document.getElementById('checkinBtn').style.background = 'var(--red)';
-      document.getElementById('accountShift').textContent = '✅ Checked In';
-      document.getElementById('accountShift').style.color = 'var(--green)';
-    }
-  }
-};
 
 async function initPOS() {
   await Promise.all([loadCategories(), loadProducts(), loadPromos()]);
@@ -1668,7 +1650,33 @@ function renderKitchenGrid() {
 }
 function statusEmoji(s) { return { Pending:'🟡', Accepted:'🔵', Cooking:'🟠', Ready:'🟢', Completed:'✅', Cancelled:'❌', Refunded:'↩' }[s] || '⬜'; }
 function nextStatuses(current) { return ({ Pending:[{status:'Accepted',label:'✔ Accept',cls:''},{status:'Cancelled',label:'✕ Cancel',cls:'danger'}], Accepted:[{status:'Cooking',label:'🍳 Cooking',cls:''},{status:'Cancelled',label:'✕ Cancel',cls:'danger'}], Cooking:[{status:'Ready',label:'🟢 Ready',cls:'success'},{status:'Cancelled',label:'✕ Cancel',cls:'danger'}], Ready:[{status:'Completed',label:'✅ Done',cls:'success'},{status:'Refunded',label:'↩ Refund',cls:'danger'}], Completed:[{status:'Refunded',label:'↩ Refund',cls:'danger'}], Cancelled:[], Refunded:[] })[current] || []; }
-window.updateOrderStatus = async function(orderId, status) { await sb.from('Order').update({ Status: status }).eq('OrderID', orderId); const idx = kitchenOrders.findIndex(o => o.OrderID === orderId); if (idx !== -1) kitchenOrders[idx].Status = status; renderKitchenGrid(); showToast(`Order #${orderId} → ${status}`, 'success'); };
+async function refundOrderIngredients(orderId) {
+  const { data: details } = await sb.from('OrderDetails').select('ProductID, Quantity').eq('OrderID', orderId);
+  if (!details?.length) return;
+  for (const d of details) {
+    const pid = d.ProductID ?? d.product_id;
+    const qty = (d.Quantity ?? d.quantity) || 0;
+    const { data: ings } = await sb.from('Ingredients').select('ItemID, UnitPerServing').eq('ProductID', pid);
+    if (!ings?.length) continue;
+    for (const ing of ings) {
+      const itemId = ing.ItemID ?? ing.item_id;
+      const perServing = parseFloat(ing.UnitPerServing ?? ing.unit_per_serving) || 0;
+      const addBack = perServing * qty;
+      const { data: itemRow } = await sb.from('Item').select('UnitQuantity').eq('ItemID', itemId).single();
+      const curr = parseFloat(itemRow?.UnitQuantity ?? itemRow?.unit_quantity ?? 0) || 0;
+      await sb.from('Item').update({ UnitQuantity: curr + addBack }).eq('ItemID', itemId);
+      await sb.from('IngredientLog').insert([{ ItemID: itemId, OrderID: orderId, ChangeAmt: addBack, Reason: 'Refund' }]);
+    }
+  }
+}
+window.updateOrderStatus = async function(orderId, status) {
+  if (status === 'Cancelled' || status === 'Refunded') await refundOrderIngredients(orderId);
+  await sb.from('Order').update({ Status: status }).eq('OrderID', orderId);
+  const idx = kitchenOrders.findIndex(o => o.OrderID === orderId);
+  if (idx !== -1) kitchenOrders[idx].Status = status;
+  renderKitchenGrid();
+  showToast(`Order #${orderId} → ${status}`, 'success');
+};
 
 window.showTab = function(name, btn) {
   document.querySelectorAll('#posView .tab').forEach(t => t.classList.remove('active'));
@@ -1735,22 +1743,28 @@ window.loadReports = async function() {
   if (d) query = query.gte('OrderDateTime', d + 'T00:00:00').lte('OrderDateTime', d + 'T23:59:59');
   const { data: orders } = await query;
   const s = sym();
-  const total = (orders||[]).reduce((n,o) => n + parseFloat(o.TotalAmount||0), 0);
-  const avg = orders?.length ? total / orders.length : 0;
+  const validOrders = (orders||[]).filter(o => o.Status !== 'Cancelled' && o.Status !== 'Refunded');
+  const total = validOrders.reduce((n,o) => n + parseFloat(o.TotalAmount||0), 0);
+  const avg = orders?.length ? total / Math.max(1, validOrders.length) : 0;
   document.getElementById('statOrders').textContent = orders?.length || 0;
   document.getElementById('statRevenue').textContent = s + total.toFixed(2);
   document.getElementById('statAvg').textContent = s + avg.toFixed(2);
   await loadProductCosts();
   let totalProfit = 0;
-  (orders||[]).forEach(o => {
+  let totalIngredientCost = 0;
+  validOrders.forEach(o => {
     (o.OrderDetails||[]).forEach(d => {
       const revenue = parseFloat(d.Price||0) * (d.Quantity||0);
       const costPer = productCostPerServing[d.ProductID] || 0;
-      totalProfit += revenue - costPer * (d.Quantity||0);
+      const qty = d.Quantity||0;
+      totalIngredientCost += costPer * qty;
+      totalProfit += revenue - costPer * qty;
     });
   });
   const profitEl = document.getElementById('statProfit');
   if (profitEl) { profitEl.textContent = s + totalProfit.toFixed(2); profitEl.style.color = totalProfit >= 0 ? 'var(--green)' : 'var(--red)'; }
+  const costEl = document.getElementById('statIngredientCost');
+  if (costEl) costEl.textContent = s + totalIngredientCost.toFixed(2);
   const pending = JSON.parse(localStorage.getItem('offline_orders')||'[]');
   document.getElementById('statOffline').textContent = pending.length;
   renderBestSellers(orders||[]);
@@ -1775,7 +1789,14 @@ function renderBestSellers(orders) {
 window.clearDateFilter = function() { document.getElementById('filterDate').value = ''; loadReports(); };
 window.openStatusModal = function(orderId, currentStatus) { document.getElementById('statusOrderId').value = orderId; document.getElementById('statusOrderInfo').textContent = `Order #${orderId} — currently: ${currentStatus}`; document.getElementById('orderStatusModal').classList.add('open'); };
 window.closeStatusModal = function() { document.getElementById('orderStatusModal').classList.remove('open'); };
-window.setOrderStatus = async function(status) { const id = document.getElementById('statusOrderId').value; await sb.from('Order').update({ Status: status }).eq('OrderID', id); closeStatusModal(); showToast(`Order #${id} → ${status}`, 'success'); loadReports(); };
+window.setOrderStatus = async function(status) {
+  const id = document.getElementById('statusOrderId').value;
+  if (status === 'Cancelled' || status === 'Refunded') await refundOrderIngredients(parseInt(id, 10));
+  await sb.from('Order').update({ Status: status }).eq('OrderID', id);
+  closeStatusModal();
+  showToast(`Order #${id} → ${status}`, 'success');
+  loadReports();
+};
 window.exportCSV = async function() {
   const { data: orders } = await sb.from('Order').select('*, Employee(Name), OrderDetails(Quantity, SizeLabel, Price, Product(Name))').order('OrderDateTime', { ascending: false });
   if (!orders?.length) { showToast('No orders to export', 'error'); return; }
@@ -1826,13 +1847,19 @@ window.loadPerformance = async function() {
     const myAtt = (att||[]).filter(a => a.EmployeeID === staff.EmployeeID);
     const totalMins = myAtt.reduce((n,a) => { if (!a.CheckOut) return n; return n + Math.round((new Date(a.CheckOut)-new Date(a.CheckIn))/60000); }, 0);
     const hours = Math.floor(totalMins/60), mins = totalMins%60;
-    return `<div class="perf-card"><div class="perf-name">${staff.Name}</div><div class="perf-pos">${staff.Position || staff.AccessLevel}</div><div class="perf-stats"><div class="perf-stat"><div class="perf-stat-label">Orders</div><div class="perf-stat-val">${myOrders.length}</div></div><div class="perf-stat"><div class="perf-stat-label">Revenue</div><div class="perf-stat-val">${s}${revenue.toFixed(0)}</div></div><div class="perf-stat"><div class="perf-stat-label">Items Sold</div><div class="perf-stat-val">${items}</div></div><div class="perf-stat"><div class="perf-stat-label">Hours Worked</div><div class="perf-stat-val">${hours}h ${mins}m</div></div></div></div>`;
+    const hrRate = parseFloat(staff.HourlyRate ?? staff.hourly_rate ?? 0) || 0;
+    const hoursDec = totalMins / 60;
+    const estPay = hrRate * hoursDec;
+    const payLine = hrRate > 0 ? `<div class="perf-stat"><div class="perf-stat-label">Per hour</div><div class="perf-stat-val">${s}${hrRate.toFixed(2)}</div></div><div class="perf-stat"><div class="perf-stat-label">Est. pay</div><div class="perf-stat-val">${s}${estPay.toFixed(2)}</div></div>` : '';
+    return `<div class="perf-card"><div class="perf-name">${staff.Name}</div><div class="perf-pos">${staff.Position || staff.AccessLevel}</div><div class="perf-stats"><div class="perf-stat"><div class="perf-stat-label">Orders</div><div class="perf-stat-val">${myOrders.length}</div></div><div class="perf-stat"><div class="perf-stat-label">Revenue</div><div class="perf-stat-val">${s}${revenue.toFixed(0)}</div></div><div class="perf-stat"><div class="perf-stat-label">Items Sold</div><div class="perf-stat-val">${items}</div></div><div class="perf-stat"><div class="perf-stat-label">Hours Worked</div><div class="perf-stat-val">${hours}h ${mins}m</div></div>${payLine}</div></div>`;
   }).join('');
 };
 window.clearPerfFilter = function() { document.getElementById('perfDateFrom').value = ''; document.getElementById('perfDateTo').value = ''; loadPerformance(); };
 
 window.loadInventory = async function() {
   await loadItems();
+  const addCard = document.getElementById('addIngredientCard');
+  if (addCard) addCard.style.display = isAdmin() ? '' : 'none';
   const low = allItems.filter(i => i.UnitQuantity <= i.RestockLvl && i.UnitQuantity > 0).length;
   const out = allItems.filter(i => i.UnitQuantity <= 0).length;
   document.getElementById('invTotal').textContent = allItems.length;
@@ -1877,6 +1904,22 @@ window.saveItemPrice = async function() {
 window.openRestockModal = function(id, name, curr) { document.getElementById('restockItemId').value = id; document.getElementById('restockItemName').textContent = name + ' (current: ' + parseFloat(curr).toFixed(1) + ')'; document.getElementById('restockQty').value = curr; document.getElementById('restockModal').classList.add('open'); };
 window.closeRestockModal = function() { document.getElementById('restockModal').classList.remove('open'); };
 window.saveRestock = async function() { const id = parseInt(document.getElementById('restockItemId').value); const qty = parseFloat(document.getElementById('restockQty').value); if (isNaN(qty) || qty < 0) { showToast('Invalid quantity', 'error'); return; } await sb.from('Item').update({ UnitQuantity: qty }).eq('ItemID', id); await sb.from('IngredientLog').insert([{ ItemID: id, ChangeAmt: qty, Reason: 'Restock' }]); closeRestockModal(); showToast('Restocked!', 'success'); loadInventory(); };
+window.saveNewIngredient = async function() {
+  const name = document.getElementById('ingName').value.trim();
+  const unitType = document.getElementById('ingUnitType').value.trim() || 'unit';
+  const qty = parseFloat(document.getElementById('ingQty').value) || 0;
+  const unitPrice = parseFloat(document.getElementById('ingUnitPrice').value) || 0;
+  const restockLvl = parseFloat(document.getElementById('ingRestockLvl').value) || 0;
+  if (!name) { showToast('Name required', 'error'); return; }
+  await sb.from('Item').insert([{ Name: name, UnitType: unitType, UnitQuantity: qty, UnitPrice: unitPrice, RestockLvl: restockLvl }]);
+  document.getElementById('ingName').value = '';
+  document.getElementById('ingUnitType').value = '';
+  document.getElementById('ingQty').value = '';
+  document.getElementById('ingUnitPrice').value = '';
+  document.getElementById('ingRestockLvl').value = '';
+  showToast('Ingredient added', 'success');
+  loadInventory();
+};
 
 window.saveProduct = async function() {
   const name = document.getElementById('pName').value.trim(), price = parseFloat(document.getElementById('pPrice').value), catId = parseInt(document.getElementById('pCat').value), stock = parseInt(document.getElementById('pStock').value) || 0, available = document.getElementById('pAvailable').checked, editId = document.getElementById('editId').value;
@@ -1909,11 +1952,70 @@ function renderPromosTable() {
   tbody.innerHTML = allAdminPromos.map(p => `<tr><td><strong>${p.Code}</strong></td><td><span class="badge">${p.Type === 'percent' ? 'Percent' : 'Fixed'}</span></td><td>${p.Type === 'percent' ? p.Value + '%' : s + parseFloat(p.Value).toFixed(2)}</td><td><button class="btn-icon" onclick="editPromo(${p.PromoID})">✏️</button><button class="btn-icon" onclick="deletePromo(${p.PromoID})">🗑</button></td></tr>`).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">No promos.</td></tr>';
 }
 
-window.saveStaff = async function() { const name = document.getElementById('staffName').value.trim(), username = document.getElementById('staffUser').value.trim(), password = document.getElementById('staffPass').value.trim(), position = document.getElementById('staffPosition').value.trim(), role = document.getElementById('staffRole').value, dob = document.getElementById('staffDob').value, editId = document.getElementById('staffEditId').value; if (!name || !username || !password) { showToast('Name, username and password required', 'error'); return; } const payload = { Name: name, Username: username, Password: password, Position: position || 'Cashier', AccessLevel: role, DateofBirth: dob || null }; if (editId) await sb.from('Employee').update(payload).eq('EmployeeID', editId); else await sb.from('Employee').insert([payload]); showToast('Staff saved!', 'success'); cancelStaffEdit(); await loadStaff(); renderStaffTable(); };
-window.editStaff = function(id) { const s = allStaff.find(x => x.EmployeeID === id); if (!s) return; document.getElementById('staffEditId').value = s.EmployeeID; document.getElementById('staffName').value = s.Name; document.getElementById('staffUser').value = s.Username || ''; document.getElementById('staffPass').value = s.Password || ''; document.getElementById('staffPosition').value = s.Position || ''; document.getElementById('staffRole').value = s.AccessLevel; document.getElementById('staffDob').value = s.DateofBirth?.split('T')[0] || ''; document.getElementById('staffFormTitle').textContent = 'Edit Staff'; };
+window.saveStaff = async function() {
+  const name = document.getElementById('staffName').value.trim();
+  const username = document.getElementById('staffUser').value.trim();
+  const password = document.getElementById('staffPass').value.trim();
+  const position = document.getElementById('staffPosition').value.trim();
+  const role = document.getElementById('staffRole').value;
+  const dob = document.getElementById('staffDob').value || null;
+  const dateHired = document.getElementById('staffDateHired').value || null;
+  const hourlyRate = parseFloat(document.getElementById('staffHourlyRate').value) || 0;
+  const contact = document.getElementById('staffContact').value.trim() || null;
+  const email = document.getElementById('staffEmail').value.trim() || null;
+  const address = document.getElementById('staffAddress').value.trim() || null;
+  const editId = document.getElementById('staffEditId').value;
+  if (!name || !username) { showToast('Name and username required', 'error'); return; }
+  if (!editId && !password) { showToast('Password required for new staff', 'error'); return; }
+  const payload = { Name: name, Username: username, Position: position || 'Cashier', AccessLevel: role, DateofBirth: dob, HourlyRate: hourlyRate, DateHired: dateHired, ContactNumber: contact, Email: email, Address: address };
+  if (password) payload.Password = password;
+  if (editId) {
+    if (!payload.Password) delete payload.Password;
+    await sb.from('Employee').update(payload).eq('EmployeeID', editId);
+  } else await sb.from('Employee').insert([payload]);
+  showToast('Staff saved!', 'success');
+  cancelStaffEdit();
+  await loadStaff();
+  renderStaffTable();
+};
+window.editStaff = function(id) {
+  const s = allStaff.find(x => x.EmployeeID === id);
+  if (!s) return;
+  document.getElementById('staffEditId').value = s.EmployeeID;
+  document.getElementById('staffName').value = s.Name;
+  document.getElementById('staffUser').value = s.Username || '';
+  document.getElementById('staffPass').value = '';
+  document.getElementById('staffPass').placeholder = 'leave blank to keep current';
+  document.getElementById('staffPosition').value = s.Position || '';
+  document.getElementById('staffRole').value = s.AccessLevel || 'Staff';
+  document.getElementById('staffDob').value = (s.DateofBirth || s.DateOfBirth || '').toString().split('T')[0] || '';
+  document.getElementById('staffDateHired').value = (s.DateHired || s.DateJoined || '').toString().split('T')[0] || '';
+  document.getElementById('staffHourlyRate').value = s.HourlyRate ?? s.hourly_rate ?? '';
+  document.getElementById('staffContact').value = s.ContactNumber || s.contact_number || '';
+  document.getElementById('staffEmail').value = s.Email || s.email || '';
+  document.getElementById('staffAddress').value = s.Address || s.address || '';
+  document.getElementById('staffFormTitle').textContent = 'Edit Staff';
+};
 window.deleteStaff = async function(id) { if (id === currentUser?.EmployeeID) { showToast("Can't delete yourself!", 'error'); return; } if (!confirm('Delete this staff?')) return; await sb.from('Employee').delete().eq('EmployeeID', id); showToast('Deleted', 'success'); await loadStaff(); renderStaffTable(); };
-window.cancelStaffEdit = function() { ['staffEditId','staffName','staffUser','staffPass','staffPosition','staffDob'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; }); document.getElementById('staffFormTitle').textContent = 'Add Staff'; };
-function renderStaffTable() { const tbody = document.getElementById('staffTableBody'); tbody.innerHTML = allStaff.map(s => `<tr><td>${s.Name}</td><td>${s.Username||'—'}</td><td>${s.Position||'—'}</td><td><span class="badge">${s.AccessLevel}</span></td><td><button class="btn-icon" onclick="editStaff(${s.EmployeeID})">✏️</button><button class="btn-icon" onclick="deleteStaff(${s.EmployeeID})">🗑</button></td></tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px;">No staff.</td></tr>'; }
+window.cancelStaffEdit = function() {
+  ['staffEditId','staffName','staffUser','staffPass','staffPosition','staffDob','staffDateHired','staffHourlyRate','staffContact','staffEmail','staffAddress'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+  document.getElementById('staffPass').placeholder = 'password';
+  document.getElementById('staffFormTitle').textContent = 'Add Staff';
+};
+window.openStaffInfo = function(id) {
+  const s = allStaff.find(x => x.EmployeeID === id);
+  if (!s) return;
+  const fmt = (v) => (v == null || v === '') ? '—' : v;
+  const dob = (s.DateofBirth || s.DateOfBirth || '').toString().split('T')[0];
+  const hired = (s.DateHired || s.DateJoined || '').toString().split('T')[0];
+  document.getElementById('staffInfoContent').innerHTML = `<div class="account-row"><span>Full Name</span><strong>${fmt(s.Name)}</strong></div><div class="account-row"><span>Username</span><strong>${fmt(s.Username)}</strong></div><div class="account-row"><span>Position</span><strong>${fmt(s.Position)}</strong></div><div class="account-row"><span>Password</span><strong>••••••••</strong></div><div class="account-row"><span>Access Level</span><strong>${fmt(s.AccessLevel)}</strong></div><div class="account-row"><span>Per hour salary</span><strong>₱${parseFloat(s.HourlyRate ?? s.hourly_rate ?? 0).toFixed(2)}</strong></div><div class="account-row"><span>Date of Birth</span><strong>${fmt(dob)}</strong></div><div class="account-row"><span>Date Hired</span><strong>${fmt(hired)}</strong></div><div class="account-row"><span>Contact</span><strong>${fmt(s.ContactNumber || s.contact_number)}</strong></div><div class="account-row"><span>Email</span><strong>${fmt(s.Email || s.email)}</strong></div><div class="account-row"><span>Address</span><strong>${fmt(s.Address || s.address)}</strong></div>`;
+  document.getElementById('staffInfoModal').classList.add('open');
+};
+window.closeStaffInfo = function() { document.getElementById('staffInfoModal').classList.remove('open'); };
+function renderStaffTable() {
+  const tbody = document.getElementById('staffTableBody');
+  tbody.innerHTML = allStaff.map(s => `<tr style="cursor:pointer;" onclick="openStaffInfo(${s.EmployeeID})" title="Click to view info"><td>${s.Name}</td><td>${s.Username||'—'}</td><td>${s.Position||'—'}</td><td><span class="badge">${s.AccessLevel}</span></td><td><button class="btn-icon" onclick="event.stopPropagation();editStaff(${s.EmployeeID})">✏️</button><button class="btn-icon" onclick="event.stopPropagation();deleteStaff(${s.EmployeeID})">🗑</button></td></tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px;">No staff.</td></tr>';
+}
 
 function loadSettingsForm() {
   const s = S();
